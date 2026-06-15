@@ -4,13 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>انقلاب — لعبة خداع خرافية</title>
-  <meta name="description" content="نسخة ويب عربية احترافية من لعبة Coup بطابع خرافي: خداع، تحديات، اغتيالات، وسلطة." />
+  <meta name="description" content="انقلاب: نسخة ويب عربية متكاملة من Coup مع تحديات، منع، انقلاب إجباري، مؤثرات بصرية، وموسيقى للأجهزة اللوحية والهواتف والحواسيب." />
+  <meta name="theme-color" content="#08070f" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
   <div class="noise"></div>
+  <div id="fxLayer" class="fx-layer" aria-hidden="true"></div>
 
   <main class="shell">
     <section id="setupScreen" class="screen setup-screen">
@@ -49,8 +51,10 @@
 
         <div id="playerNames" class="player-name-list"></div>
 
-        <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
-        <button id="openRules" class="btn btn-ghost">عرض ورقة القواعد السريعة</button>
+        <div class="hero-actions">
+          <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
+          <button id="openRules" class="btn btn-ghost">عرض ورقة القواعد السريعة</button>
+        </div>
       </div>
     </section>
 
@@ -62,6 +66,8 @@
         </div>
         <div class="topbar-actions">
           <button id="showMyCards" class="btn btn-ghost">عرض بطاقات اللاعب الحالي</button>
+          <button id="soundToggle" class="btn btn-ghost" type="button">الصوت: تشغيل</button>
+          <button id="visualToggle" class="btn btn-ghost" type="button">المؤثرات: تشغيل</button>
           <button id="newGame" class="btn btn-danger">لعبة جديدة</button>
         </div>
       </header>
@@ -70,7 +76,7 @@
         <article class="glass-panel status-card">
           <span>البنك</span>
           <strong id="bankCoins">—</strong>
-          <small>عملة متاحة</small>
+          <small>عملات غير محدودة</small>
         </article>
         <article class="glass-panel status-card">
           <span>كومة الاحتياط</span>
