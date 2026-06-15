@@ -20,87 +20,118 @@
 
   <main class="shell">
     <section id="setupScreen" class="screen setup-screen">
-      <div class="setup-stage">
-        <section class="brand-panel glass-panel">
-          <div class="brand-kicker">مجلس الظلال · Bluffing Royale</div>
-          <h1>انقلاب</h1>
-          <p class="subtitle">نسخة Coup عربية فاخرة: بسيطة للعب من أول دقيقة، لكنها تبدو كأنها لعبة Premium على آيباد أو شاشة كبيرة.</p>
+      <div class="setup-stage opening-stage">
+        <section class="brand-panel opening-hero glass-panel" aria-labelledby="openingTitle">
+          <div class="opening-orbit" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
 
-          <div class="hero-metrics" aria-label="معلومات سريعة">
+          <div class="opening-copy">
+            <div class="brand-kicker intro-kicker">
+              <span class="kicker-dot"></span>
+              Coup Arabic · مجلس لا يرحم
+            </div>
+            <h1 id="openingTitle" class="opening-title">انقلاب</h1>
+            <p class="subtitle opening-subtitle">مو لعبة أزرار هادئة. هذا مجلس نفوذ: كل ادعاء ممكن يكون كذبة، وكل سكوت ممكن يكون فخ.</p>
+
+            <div class="opening-verdict" aria-label="هوية اللعبة">
+              <strong>اكذب</strong>
+              <span></span>
+              <strong>اتحدّى</strong>
+              <span></span>
+              <strong>أسقطهم</strong>
+            </div>
+          </div>
+
+          <div class="war-table" aria-label="استعراض بطاقات الشخصيات">
+            <div class="table-core">
+              <span class="core-seal">♛</span>
+              <small>ملف النفوذ</small>
+              <strong>خمسة أدوار، ولا ثقة بأحد</strong>
+            </div>
+            <img class="role-card card-captain" src="assets/cards/captain.webp" alt="بطاقة القبطان" />
+            <img class="role-card card-assassin" src="assets/cards/assassin.webp" alt="بطاقة السفاح" />
+            <img class="role-card card-duke" src="assets/cards/duke.webp" alt="بطاقة الدوق" />
+            <img class="role-card card-contessa" src="assets/cards/contessa.webp" alt="بطاقة الكونتيسة" />
+            <img class="role-card card-ambassador" src="assets/cards/ambassador.webp" alt="بطاقة السفير" />
+          </div>
+
+          <div class="hero-metrics opening-metrics" aria-label="معلومات سريعة">
             <span>2–6 لاعبين</span>
-            <span>10–20 دقيقة</span>
-            <span>13+</span>
-            <span>خداع · تحدي · إقصاء</span>
+            <span>غرف أونلاين</span>
+            <span>بطاقات مخفية</span>
+            <span>تحدي · منع · انقلاب</span>
           </div>
 
-          <div class="card-showcase" aria-label="استعراض بطاقات الشخصيات">
-            <img src="assets/cards/captain.webp" alt="بطاقة القبطان" />
-            <img src="assets/cards/assassin.webp" alt="بطاقة السفاح" />
-            <img src="assets/cards/duke.webp" alt="بطاقة الدوق" />
-            <img src="assets/cards/contessa.webp" alt="بطاقة الكونتيسة" />
-            <img src="assets/cards/ambassador.webp" alt="بطاقة السفير" />
-          </div>
-
-          <div class="promise-grid">
+          <div class="opening-brief">
             <article>
-              <strong>1</strong>
-              <span>اختر اللاعبين</span>
-              <small>أسماء جاهزة أو مخصصة.</small>
+              <small>01</small>
+              <strong>كل لاعب يبدأ بوجهين</strong>
+              <span>بطاقتان مخفيتان، والعملات هي السلاح الهادئ.</span>
             </article>
             <article>
-              <strong>2</strong>
-              <span>مرّر الجهاز أو العب أونلاين</span>
-              <small>في الغرف كل لاعب يرى بطاقاته فقط.</small>
+              <small>02</small>
+              <strong>الكذب مسموح</strong>
+              <span>ادّعِ أي شخصية، بس إذا انكشفت تدفع الثمن.</span>
             </article>
             <article>
-              <strong>3</strong>
-              <span>اللعبة تقود القواعد</span>
-              <small>تحدي، منع، انقلاب إجباري.</small>
+              <small>03</small>
+              <strong>الغرفة تمسك السر</strong>
+              <span>بالأونلاين كل لاعب يرى أوراقه فقط، والباقي توتر.</span>
             </article>
           </div>
         </section>
 
-        <aside class="setup-console glass-panel">
-          <div class="console-head">
+        <aside class="setup-console command-console glass-panel" aria-label="لوحة بدء اللعبة">
+          <div class="console-head command-head">
             <span class="status-dot"></span>
             <div>
-              <strong>إعداد لعبة جديدة</strong>
-              <small>مصمم ليكون واضح حتى لمن لم يلعب Coup من قبل.</small>
+              <strong>غرفة عمليات الانقلاب</strong>
+              <small>ابدأ محلياً على نفس الجهاز، أو افتح غرفة وخلّ كل لاعب يدخل من جهازه.</small>
             </div>
           </div>
 
-          <div class="setup-grid">
-            <label class="field">
-              <span>عدد اللاعبين</span>
-              <select id="playerCount">
-                <option value="2">2 لاعبين</option>
-                <option value="3" selected>3 لاعبين</option>
-                <option value="4">4 لاعبين</option>
-                <option value="5">5 لاعبين</option>
-                <option value="6">6 لاعبين</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>نمط الأسماء</span>
-              <select id="namePreset">
-                <option value="royal" selected>ملكي خرافي</option>
-                <option value="neutral">لاعب 1، لاعب 2...</option>
-              </select>
-            </label>
+          <div class="launch-section local-launch">
+            <div class="section-label">
+              <span>اللعب المحلي</span>
+              <small>نفس الجهاز / تمرير الجهاز</small>
+            </div>
+            <div class="setup-grid">
+              <label class="field">
+                <span>عدد اللاعبين</span>
+                <select id="playerCount">
+                  <option value="2">2 لاعبين</option>
+                  <option value="3" selected>3 لاعبين</option>
+                  <option value="4">4 لاعبين</option>
+                  <option value="5">5 لاعبين</option>
+                  <option value="6">6 لاعبين</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>نمط الأسماء</span>
+                <select id="namePreset">
+                  <option value="royal" selected>أسماء مجلس الظلال</option>
+                  <option value="neutral">لاعب 1، لاعب 2...</option>
+                </select>
+              </label>
+            </div>
+            <div id="playerNames" class="player-name-list command-name-list" aria-label="أسماء اللاعبين"></div>
+            <div class="hero-actions launch-actions">
+              <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب المحلي</button>
+              <button id="openRules" class="btn btn-ghost">القواعد السريعة</button>
+            </div>
           </div>
 
-          <div id="playerNames" class="player-name-list" aria-label="أسماء اللاعبين"></div>
-
-          <div class="online-room-panel">
-            <div class="panel-title compact">
+          <div class="online-room-panel command-online">
+            <div class="section-label">
               <span>غرفة أونلاين</span>
-              <small>نفس منطق الغرف: إنشاء، رمز، انضمام، مزامنة</small>
+              <small>إنشاء · رمز · انضمام · مزامنة</small>
             </div>
             <label class="field">
               <span>اسمك داخل الغرفة</span>
               <input id="onlineName" maxlength="24" placeholder="مثلاً: حسين" autocomplete="off" />
             </label>
-            <div class="online-actions">
+            <div class="online-actions command-online-actions">
               <button id="createOnlineRoom" class="btn btn-primary" type="button">إنشاء غرفة</button>
               <label class="field room-code-field">
                 <span>رمز الغرفة</span>
@@ -108,8 +139,8 @@
               </label>
               <button id="joinOnlineRoom" class="btn btn-ghost" type="button">انضمام</button>
             </div>
-            <div id="onlineLobby" class="online-lobby hidden">
-              <div class="room-code-card">
+            <div id="onlineLobby" class="online-lobby command-lobby hidden">
+              <div class="room-code-card command-code-card">
                 <span>رمز الغرفة</span>
                 <strong id="onlineLobbyCode">—</strong>
               </div>
@@ -123,13 +154,8 @@
             </div>
           </div>
 
-          <div class="hero-actions">
-            <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
-            <button id="openRules" class="btn btn-ghost">القواعد السريعة</button>
-          </div>
-
-          <div class="quick-note">
-            <b>قاعدة ذهبية:</b> آخر لاعب لديه بطاقة مخفية واحدة على الأقل هو الفائز.
+          <div class="quick-note command-note">
+            <b>قاعدة المجلس:</b> لا تصدّق الواجهة الهادئة؛ آخر لاعب لديه بطاقة مخفية واحدة على الأقل هو الفائز.
           </div>
         </aside>
       </div>
