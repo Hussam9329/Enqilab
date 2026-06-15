@@ -144,3 +144,9 @@ http://localhost:3000
 ### ملاحظات نشر
 
 السيرفر الحالي يستخدم ذاكرة Node.js فقط، لذلك الغرف تبقى 24 ساعة تقريباً أو إلى أن يعاد تشغيل السيرفر. للنشر الحقيقي على أكثر من instance، انقل `rooms` في `server.js` إلى Redis أو KV بنفس فكرة مشروع `spy-game`.
+
+### Opening hotfix: title and background cleanup
+
+- Fixed the opening title so the Arabic word **انقلاب** is no longer clipped by tight line-height or letter spacing.
+- Reduced background glow, grid, and grain intensity to make the opening screen cleaner and less chaotic.
+- Rebalanced the hero panel, card table, and opening copy without changing game rules or room logic.
