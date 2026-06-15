@@ -108,6 +108,14 @@ const state = {
   phase: 'setup',
   pending: null,
   log: [],
+  ui: {
+    lastDrama: {
+      title: 'الهدوء قبل أول كذبة',
+      text: 'كل قرار سيترك أثراً بصرياً واضحاً حتى يشعر اللاعبون بالضغط بدل انتظار دور رتيب.',
+      tone: 'gold'
+    },
+    bannerTimer: null
+  },
   settings: {
     sound: readBoolSetting(STORAGE_KEYS.sound, true),
     visuals: readBoolSetting(STORAGE_KEYS.visuals, true)
@@ -130,6 +138,12 @@ const playerNames = $('#playerNames');
 const playersGrid = $('#playersGrid');
 const actionList = $('#actionList');
 const eventLog = $('#eventLog');
+const dramaKicker = $('#dramaKicker');
+const dramaTitle = $('#dramaTitle');
+const dramaText = $('#dramaText');
+const dramaPercent = $('#dramaPercent');
+const dramaMeter = $('#dramaMeter');
+const dramaHint = $('#dramaHint');
 const modal = $('#modal');
 const modalContent = $('#modalContent');
 const fxLayer = $('#fxLayer');
@@ -137,13 +151,21 @@ const turnOrder = $('#turnOrder');
 const modalCloseButton = $('.modal-close');
 
 function readBoolSetting(key, fallback) {
-  const saved = localStorage.getItem(key);
-  if (saved === null) return fallback;
-  return saved === 'true';
+  try {
+    const saved = window.localStorage?.getItem(key);
+    if (saved === null || saved === undefined) return fallback;
+    return saved === 'true';
+  } catch (error) {
+    return fallback;
+  }
 }
 
 function saveSetting(key, value) {
-  localStorage.setItem(key, String(value));
+  try {
+    window.localStorage?.setItem(key, String(value));
+  } catch (error) {
+    // Some embedded/file contexts block localStorage; the UI still works without persistence.
+  }
 }
 
 function shuffle(list) {
@@ -202,6 +224,146 @@ function addLog(text, type = 'info') {
   state.log.unshift({ text, time, type });
 }
 
+function setDrama(title, text = '', tone = 'gold') {
+  state.ui.lastDrama = { title, text, tone };
+  renderDramaPanel();
+}
+
+function getPlayerPressure(player) {
+  if (!player || !player.alive) return 0;
+  const coins = Math.min(10, player.coins) * 6;
+  const wounds = (2 - hiddenCards(player).length) * 18;
+  const coupReady = player.coins >= 7 ? 16 : 0;
+  const forced = player.coins >= 10 ? 22 : 0;
+  return Math.min(100, Math.max(8, coins + wounds + coupReady + forced));
+}
+
+function getPlayerRead(player) {
+  if (!player?.alive) return 'صوته انطفأ من المجلس.';
+  if (player.coins >= 10) return 'ضغط أحمر: لازم ينفذ انقلاباً.';
+  if (player.coins >= 7) return 'يمتلك ثمن انقلاب… كل كرسي حوله مهدد.';
+  if (hiddenCards(player).length === 1) return 'على آخر نفس؛ أي خسارة تعني الخروج.';
+  if (player.coins <= 1) return 'فقير الآن، لكن الكذبة الرخيصة قد تغيّر الطاولة.';
+  return 'ما زال يملك مساحة للكذب والمناورة.';
+}
+
+function getActionDrama(actionKey) {
+  const action = ACTIONS[actionKey];
+  if (!action) return { level: 15, label: 'هادئ' };
+  if (actionKey === 'coup') return { level: 100, label: 'لا رجعة' };
+  if (actionKey === 'assassinate') return { level: 88, label: 'مميت' };
+  if (actionKey === 'steal') return { level: 67, label: 'استفزاز' };
+  if (actionKey === 'tax') return { level: 58, label: 'كذبة ذهبية' };
+  if (actionKey === 'exchange') return { level: 44, label: 'غموض' };
+  if (actionKey === 'foreignAid') return { level: 35, label: 'قابل للمنع' };
+  return { level: 18, label: 'آمن' };
+}
+
+function getTargetVibe(player, actionKey) {
+  const influence = hiddenCards(player).length;
+  const pressure = getPlayerPressure(player);
+  const labels = [];
+  if (player.coins >= 7) labels.push('خطر انقلاب');
+  if (influence === 1) labels.push('هدف هش');
+  if (actionKey === 'steal' && player.coins > 0) labels.push(`غنيمة ${Math.min(2, player.coins)}`);
+  if (!labels.length) labels.push(pressure >= 50 ? 'ضغط متوسط' : 'هدف هادئ');
+  return labels.join(' · ');
+}
+
+function getSuspenseSnapshot() {
+  if (!state.players.length) {
+    return {
+      level: 0,
+      title: state.ui.lastDrama.title,
+      text: state.ui.lastDrama.text,
+      hint: 'ابدأ اللعبة حتى تظهر قراءة الضغط.',
+      tone: state.ui.lastDrama.tone
+    };
+  }
+
+  const actor = activePlayer();
+  const pressures = state.players.map(getPlayerPressure);
+  const topPressure = Math.max(0, ...pressures);
+  const pendingBoost = ['awaitChallenge', 'awaitBlock', 'awaitBlockChallenge', 'loseInfluence'].includes(state.phase) ? 24 : 0;
+  const duelBoost = state.pending?.targetId !== null && state.pending?.targetId !== undefined ? 12 : 0;
+  const level = Math.min(100, Math.round(topPressure * 0.72 + pendingBoost + duelBoost));
+
+  let title = state.ui.lastDrama.title;
+  let text = state.ui.lastDrama.text;
+  let hint = actor ? getPlayerRead(actor) : 'المجلس ينتظر أول حركة.';
+  let tone = state.ui.lastDrama.tone || 'gold';
+
+  if (state.phase === 'chooseAction' && actor) {
+    title = actor.coins >= 10 ? 'الانقلاب صار إجبارياً' : `القرار بيد ${actor.name}`;
+    text = actor.coins >= 10
+      ? 'كل شيء في الواجهة يضغط باتجاه الضربة الحتمية، بدون تغيير أي قانون.'
+      : 'راقب العملات والتأثيرات: الواجهة الآن تفضح من يملك تهديداً ومن ينهار.';
+    tone = actor.coins >= 7 ? 'red' : 'gold';
+  } else if (state.phase === 'awaitChallenge') {
+    title = 'لحظة الصمت الخطرة';
+    text = 'ادعاء شخصية على الطاولة. السؤال الآن: تحدي أم ابتلاع الكذبة؟';
+    hint = 'التحدي الصحيح يكسر الحركة، والخاطئ يحرق تأثيراً.';
+    tone = 'violet';
+  } else if (state.phase === 'awaitBlock') {
+    title = 'نافذة المنع مفتوحة';
+    text = 'الكل يعرف القانون، لكن لا أحد يعرف من يملك البطاقة فعلاً.';
+    hint = 'المنع نفسه قد يكون كذبة أكبر من الهجوم.';
+    tone = 'cyan';
+  } else if (state.phase === 'awaitBlockChallenge') {
+    title = 'من يتحدى الجدار؟';
+    text = 'المنع أعلن نفسه. الآن المواجهة بين مصدّق ومشكّك.';
+    hint = 'قبول المنع ينهي الحركة، تحديه قد يقلب الطاولة.';
+    tone = 'violet';
+  } else if (state.phase === 'loseInfluence') {
+    title = 'بطاقة ستُحرق الآن';
+    text = 'الخسارة صارت ملموسة: اللاعب يختار أي نفوذ يدفنه أمام المجلس.';
+    hint = 'كل بطاقة مكشوفة تجعل اللاعب أسهل قراءة.';
+    tone = 'red';
+  } else if (state.phase === 'exchange') {
+    title = 'الظل يبدّل وجهه';
+    text = 'التبادل لا يغيّر القواعد، لكنه يعيد الغموض إلى يد اللاعب.';
+    hint = 'بعد التبادل، لا تثق بذاكرتك القديمة عن بطاقاته.';
+    tone = 'cyan';
+  } else if (state.phase === 'passDevice') {
+    title = 'الكرسي ينتقل بسرّية';
+    text = 'لحظة تمرير الجهاز صارت جزءاً من المسرح بدل أن تكون توقفاً بارداً.';
+    hint = 'لا تنظروا للشاشة قبل أن يأخذ اللاعب دوره.';
+    tone = 'gold';
+  } else if (state.phase === 'gameOver') {
+    title = 'المجلس سقط';
+    text = 'انتهى الصراع وبقي صاحب النفوذ الأخير.';
+    hint = 'ابدأ جولة جديدة لتبدأ كذبة جديدة.';
+    tone = 'gold';
+  }
+
+  return { level, title, text, hint, tone };
+}
+
+function renderDramaPanel() {
+  if (!dramaTitle || !dramaText || !dramaMeter || !dramaPercent || !dramaHint) return;
+  const snapshot = getSuspenseSnapshot();
+  dramaTitle.textContent = snapshot.title;
+  dramaText.textContent = snapshot.text;
+  dramaPercent.textContent = `${snapshot.level}%`;
+  dramaMeter.style.width = `${snapshot.level}%`;
+  dramaHint.textContent = snapshot.hint;
+  const tone = snapshot.tone || 'gold';
+  dramaMeter.dataset.tone = tone;
+  if (dramaKicker) dramaKicker.textContent = tone === 'red' ? 'إنذار المجلس' : tone === 'violet' ? 'منطقة الشك' : tone === 'cyan' ? 'نافذة المناورة' : 'نبض المجلس';
+}
+
+function showDramaBanner(title, subtitle = '', tone = 'gold') {
+  setDrama(title, subtitle, tone);
+  if (!state.settings.visuals || !fxLayer) return;
+  const banner = document.createElement('div');
+  banner.className = `drama-banner drama-${tone}`;
+  banner.innerHTML = `<strong>${escapeHtml(title)}</strong>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ''}`;
+  fxLayer.appendChild(banner);
+  window.clearTimeout(state.ui.bannerTimer);
+  state.ui.bannerTimer = window.setTimeout(() => banner.remove(), 2400);
+  banner.addEventListener('animationend', () => banner.remove(), { once: true });
+}
+
 function updateNameInputs() {
   const count = Number(playerCount.value);
   const preset = PRESET_NAMES[namePreset.value];
@@ -244,10 +406,12 @@ function startGame() {
   state.log = [];
   addLog(`بدأ الانقلاب ببطاقات Coup كاملة: 15 بطاقة، عملتان لكل لاعب، و${deck.length} بطاقة في كومة الاحتياط.`);
   addLog(`${activePlayer().name} يفتتح مجلس الظلال.`);
+  setDrama('المجلس انعقد', `${activePlayer().name} يفتتح أول مناورة.`, 'gold');
   setupScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
   playEffect('start');
   burstAtCenter('gold');
+  showDramaBanner('المجلس انعقد', `${activePlayer().name} يبدأ أول دور.`, 'gold');
   render();
   showPassDeviceModal('ابدأ الدور الأول', true);
 }
@@ -264,6 +428,8 @@ function render() {
   $('#soundToggle').textContent = state.settings.sound ? 'الصوت: تشغيل' : 'الصوت: إيقاف';
   $('#visualToggle').textContent = state.settings.visuals ? 'المؤثرات: تشغيل' : 'المؤثرات: إيقاف';
   document.body.classList.toggle('fx-off', !state.settings.visuals);
+  document.body.dataset.phase = state.phase;
+  renderDramaPanel();
   renderTurnOrder();
   renderActions();
   renderPlayers();
@@ -324,6 +490,8 @@ function renderActions() {
     const claim = action.claim ? `يتطلب ادعاء ${ROLE_DEFS[action.claim].ar}` : 'بدون شخصية';
     const blockText = action.unblockable ? 'لا يُمنع' : canBeBlocked(key) ? 'قد يُمنع' : 'قابل للتحدي';
     const mandatory = activePlayer()?.coins >= 10 && key === 'coup' ? '<em>إجباري الآن</em>' : '';
+    const drama = getActionDrama(key);
+    btn.style.setProperty('--risk', `${drama.level}%`);
     btn.innerHTML = `
       <span class="action-icon" aria-hidden="true">${action.icon || '✦'}</span>
       <span class="cost">${action.cost ? `${action.cost} عملات` : 'مجاني'}</span>
@@ -335,6 +503,7 @@ function renderActions() {
         <span class="action-chip">${blockText}</span>
         ${mandatory}
       </span>
+      <span class="action-risk" aria-hidden="true"><b>توتر ${drama.label}</b><i></i></span>
       ${disabledReason ? `<span class="disabled-reason">${disabledReason}</span>` : ''}
     `;
     btn.addEventListener('click', () => chooseAction(key));
@@ -362,12 +531,23 @@ function renderPlayers() {
   playersGrid.innerHTML = '';
   state.players.forEach((player, index) => {
     const card = document.createElement('article');
-    card.className = `player-card glass-panel ${index === state.currentPlayer && state.phase !== 'gameOver' ? 'active' : ''} ${player.alive ? '' : 'out'}`;
+    const pending = state.pending;
+    const playerClasses = ['player-card', 'glass-panel'];
+    if (index === state.currentPlayer && state.phase !== 'gameOver') playerClasses.push('active');
+    if (!player.alive) playerClasses.push('out');
+    if (pending?.actorId === player.id) playerClasses.push('plotter');
+    if (pending?.targetId === player.id) playerClasses.push('marked');
+    if (pending?.block?.playerId === player.id) playerClasses.push('blocker');
+    if (player.coins >= 7 && player.alive) playerClasses.push('wealthy');
+    if (hiddenCards(player).length === 1 && player.alive) playerClasses.push('wounded');
+    card.className = playerClasses.join(' ');
     card.dataset.playerId = String(player.id);
     const revealed = player.cards.filter((c) => c.revealed).length;
     const lives = hiddenCards(player).length;
     const danger = player.coins >= 10 ? '<span class="badge danger">انقلاب إجباري</span>' : player.coins >= 7 ? '<span class="badge warning">جاهز للانقلاب</span>' : '';
     const turnBadge = index === state.currentPlayer && state.phase !== 'gameOver' ? '<span class="badge warning">دوره الآن</span>' : '';
+    const pressure = getPlayerPressure(player);
+    card.style.setProperty('--pressure', `${pressure}%`);
     card.innerHTML = `
       <span class="seat-number">${index + 1}</span>
       <div class="player-head">
@@ -384,6 +564,8 @@ function renderPlayers() {
         <span class="badge">${revealed} مكشوف</span>
         ${danger}
       </div>
+      <div class="player-pressure" aria-label="ضغط اللاعب"><span></span></div>
+      <div class="player-read">${getPlayerRead(player)}</div>
       <div class="card-row">
         ${player.cards.map((c) => renderInfluence(c)).join('')}
       </div>
@@ -419,6 +601,7 @@ function renderLog() {
 function chooseAction(actionKey) {
   if (!canUseAction(actionKey)) {
     playEffect('deny');
+    showDramaBanner('الطريق مغلق', getActionDisabledReason(actionKey), 'red');
     return;
   }
   playEffect('select');
@@ -433,13 +616,15 @@ function chooseAction(actionKey) {
 function chooseTarget(actionKey) {
   const options = validTargets(activePlayer().id, actionKey);
   showModal(`
-    <h2>اختر الهدف</h2>
-    <p>الإجراء: <strong>${ACTIONS[actionKey].label}</strong></p>
-    <div class="option-grid">
+    <h2>حدّد الضحية</h2>
+    <p>الإجراء: <strong>${ACTIONS[actionKey].label}</strong>. الواجهة تعرض لك ضغط كل هدف فقط، القرار يبقى للاعب.</p>
+    <div class="option-grid target-grid">
       ${options.map((p) => `
-        <button class="btn btn-ghost target-option" data-target="${p.id}" value="cancel">
+        <button class="btn btn-ghost target-option cinematic-target" data-target="${p.id}" value="cancel" style="--pressure:${getPlayerPressure(p)}%">
           <strong>${escapeHtml(p.name)}</strong>
           <small>${p.coins} عملات · ${hiddenCards(p).length} تأثير مخفي</small>
+          <span>${getTargetVibe(p, actionKey)}</span>
+          <i aria-hidden="true"></i>
         </button>`).join('')}
     </div>
   `);
@@ -471,6 +656,7 @@ function beginAction(actionKey, targetId) {
   };
 
   addLog(`${actor.name} أعلن إجراء: ${action.label}${targetId !== null ? ` ضد ${state.players[targetId].name}` : ''}.`, actionKey);
+  showDramaBanner(action.label, targetId !== null ? `${actor.name} يضع ${state.players[targetId].name} تحت الضوء.` : `${actor.name} يختبر أعصاب المجلس.`, actionKey === 'coup' || actionKey === 'assassinate' ? 'red' : action.claim ? 'violet' : 'gold');
 
   if (action.cost > 0) {
     actor.coins -= action.cost;
@@ -507,15 +693,15 @@ function showChallengeModal() {
   const role = ROLE_DEFS[pending.claimRole];
   const challengers = state.players.filter((p) => p.alive && p.id !== actor.id);
   showModal(`
-    <h2>هل يتحدى أحد هذا الادعاء؟</h2>
-    <p><strong>${escapeHtml(actor.name)}</strong> يدّعي أنه يملك <strong>${role.ar}</strong>. أول تحدي يتم اختياره هو الذي يُحلّ.</p>
+    <h2>لحظة الشك</h2>
+    <p><strong>${escapeHtml(actor.name)}</strong> وضع بطاقة <strong>${role.ar}</strong> على الطاولة بالكلام فقط. أول تحدي يتم اختياره هو الذي يُحلّ.</p>
     <div class="claim-card">
       <img src="${role.image}" alt="${roleAlt(pending.claimRole)}" />
       <div><strong>${role.ar}</strong><small>${role.power}</small></div>
     </div>
     <div class="option-grid">
-      ${challengers.map((p) => `<button class="btn btn-danger" data-challenge="${p.id}" value="cancel">${escapeHtml(p.name)} يتحدى</button>`).join('')}
-      <button class="btn btn-primary" id="noChallenge" value="cancel">لا يوجد تحدي</button>
+      ${challengers.map((p) => `<button class="btn btn-danger challenge-button" data-challenge="${p.id}" value="cancel"><strong>${escapeHtml(p.name)}</strong><small>يتحدى ويخاطر بتأثير</small></button>`).join('')}
+      <button class="btn btn-primary" id="noChallenge" value="cancel">لا أحد يجرؤ على التحدي</button>
     </div>
   `);
   $$('[data-challenge]', modalContent).forEach((btn) => {
@@ -523,6 +709,7 @@ function showChallengeModal() {
   });
   $('#noChallenge').addEventListener('click', () => {
     closeModal();
+    showDramaBanner('مرّت الكذبة… أو الحقيقة', 'لا يوجد تحدي على الادعاء.', 'gold');
     if (canBeBlocked(pending.actionKey)) {
       state.phase = 'awaitBlock';
       render();
@@ -544,6 +731,7 @@ function resolveClaimChallenge(challengerId) {
 
   if (honest) {
     addLog(`${challenger.name} تحدى ${actor.name}… وكان ${actor.name} صادقاً بامتلاك ${ROLE_DEFS[role].ar}.`, 'challenge');
+    showDramaBanner('التحدي ارتدّ على صاحبه', `${actor.name} كان صادقاً — ${challenger.name} سيدفع الثمن.`, 'violet');
     showProofModal(actor, role, () => {
       requestLoseInfluence(challenger.id, () => {
         if (canBeBlocked(pending.actionKey) && actor.alive) {
@@ -559,6 +747,7 @@ function resolveClaimChallenge(challengerId) {
     });
   } else {
     addLog(`${challenger.name} تحدى ${actor.name}… وانكشفت الكذبة. لا يملك ${actor.name} ${ROLE_DEFS[role].ar}.`, 'challenge');
+    showDramaBanner('انكشفت الكذبة', `${actor.name} لا يملك ${ROLE_DEFS[role].ar}.`, 'red');
     refundActionCost(pending);
     requestLoseInfluence(actor.id, () => {
       if (ACTIONS[pending.actionKey].cost) {
@@ -591,14 +780,25 @@ function refundActionCost(pending) {
 function showProofModal(player, role, after) {
   const roleDef = ROLE_DEFS[role];
   showModal(`
-    <h2>تم إثبات الادعاء</h2>
-    <p><strong>${escapeHtml(player.name)}</strong> يملك بالفعل <strong>${roleDef.ar}</strong>. تُكشف البطاقة لإثبات الادعاء، ثم تعود إلى كومة المحكمة ويأخذ اللاعب بطاقة بديلة عشوائية للحفاظ على الغموض.</p>
-    <div class="proof-card">
+    <h2>لحظة كشف الحكم</h2>
+    <p><strong>${escapeHtml(player.name)}</strong> سيكشف الدليل الآن. البطاقة تثبت الادعاء ثم تعود إلى كومة المحكمة ويأخذ اللاعب بطاقة بديلة عشوائية للحفاظ على الغموض.</p>
+    <div class="proof-card proof-concealed" id="proofCard">
+      <div class="proof-back">؟</div>
       <img src="${roleDef.image}" alt="${roleAlt(role)}" />
       <strong>${roleDef.ar}</strong>
     </div>
-    <button class="btn btn-primary" id="continueAfterProof" value="cancel">متابعة</button>
+    <div class="option-grid proof-actions">
+      <button class="btn btn-danger" id="revealProof" type="button" value="cancel">اكشف البطاقة</button>
+      <button class="btn btn-primary" id="continueAfterProof" disabled value="cancel">متابعة الحكم</button>
+    </div>
   `, true);
+  $('#revealProof').addEventListener('click', () => {
+    $('#proofCard')?.classList.remove('proof-concealed');
+    $('#continueAfterProof').disabled = false;
+    $('#revealProof').disabled = true;
+    playEffect('challenge');
+    burstAtCenter('violet');
+  });
   $('#continueAfterProof').addEventListener('click', () => {
     replaceProvenInfluence(player, role);
     closeModal();
@@ -637,23 +837,27 @@ function showBlockModal() {
   const pending = state.pending;
   const action = ACTIONS[pending.actionKey];
   showModal(`
-    <h2>هل يوجد منع؟</h2>
-    <p>الإجراء <strong>${action.label}</strong> يمكن منعه الآن. الدوق يمنع المساعدات فقط ولا يأخذ العملات لنفسه.</p>
+    <h2>نافذة المنع</h2>
+    <p>الإجراء <strong>${action.label}</strong> وصل للحافة. من يملك الجرأة ليقول: «أوقفه»؟ الدوق يمنع المساعدات فقط ولا يأخذ العملات لنفسه.</p>
     <div class="option-grid">
-      ${opts.map((item, i) => `<button class="btn btn-ghost" data-block="${i}" value="cancel">${escapeHtml(item.player.name)} يمنع بـ ${ROLE_DEFS[item.role].ar}</button>`).join('')}
-      <button class="btn btn-primary" id="noBlock" value="cancel">لا يوجد منع</button>
+      ${opts.map((item, i) => `<button class="btn btn-ghost block-button" data-block="${i}" value="cancel"><strong>${escapeHtml(item.player.name)}</strong><small>يمنع بـ ${ROLE_DEFS[item.role].ar}</small></button>`).join('')}
+      <button class="btn btn-primary" id="noBlock" value="cancel">لا أحد يمنع</button>
     </div>
   `);
   $$('[data-block]', modalContent).forEach((btn) => {
     btn.addEventListener('click', () => declareBlock(opts[Number(btn.dataset.block)]));
   });
-  $('#noBlock').addEventListener('click', () => resolveAction());
+  $('#noBlock').addEventListener('click', () => {
+    showDramaBanner('لا يوجد حاجز', `إجراء ${action.label} سيستمر.`, 'gold');
+    resolveAction();
+  });
 }
 
 function declareBlock({ player, role }) {
   closeModal();
   state.pending.block = { playerId: player.id, role };
   addLog(`${player.name} أعلن المنع ببطاقة ${ROLE_DEFS[role].ar}.`, 'block');
+  showDramaBanner('تم إعلان المنع', `${player.name} يقول إنه يملك ${ROLE_DEFS[role].ar}.`, 'cyan');
   playEffect('block');
   state.phase = 'awaitBlockChallenge';
   render();
@@ -666,15 +870,15 @@ function showBlockChallengeModal() {
   const role = ROLE_DEFS[pending.block.role];
   const challengers = state.players.filter((p) => p.alive && p.id !== blocker.id);
   showModal(`
-    <h2>هل يتم تحدي المنع؟</h2>
+    <h2>هل الجدار حقيقي؟</h2>
     <p><strong>${escapeHtml(blocker.name)}</strong> يدّعي امتلاك <strong>${role.ar}</strong> لمنع الإجراء. أي لاعب حي آخر يستطيع تحدي هذا المنع.</p>
     <div class="claim-card">
       <img src="${role.image}" alt="${roleAlt(pending.block.role)}" />
       <div><strong>${role.ar}</strong><small>${role.power}</small></div>
     </div>
     <div class="option-grid">
-      ${challengers.map((p) => `<button class="btn btn-danger" data-block-challenge="${p.id}" value="cancel">${escapeHtml(p.name)} يتحدى المنع</button>`).join('')}
-      <button class="btn btn-primary" id="acceptBlock" value="cancel">لا يوجد تحدي — قبول المنع</button>
+      ${challengers.map((p) => `<button class="btn btn-danger challenge-button" data-block-challenge="${p.id}" value="cancel"><strong>${escapeHtml(p.name)}</strong><small>يتحدى المنع</small></button>`).join('')}
+      <button class="btn btn-primary" id="acceptBlock" value="cancel">قبول المنع — تنطفئ الحركة</button>
     </div>
   `);
   $$('[data-block-challenge]', modalContent).forEach((btn) => {
@@ -683,6 +887,7 @@ function showBlockChallengeModal() {
   $('#acceptBlock').addEventListener('click', () => {
     closeModal();
     addLog(`تم قبول المنع. فشل إجراء ${ACTIONS[pending.actionKey].label}.`, 'block');
+    showDramaBanner('المنع نجح بصمت', `انتهى إجراء ${ACTIONS[pending.actionKey].label}.`, 'cyan');
     finishTurn();
   });
 }
@@ -698,6 +903,7 @@ function resolveBlockChallenge(challengerId) {
 
   if (honest) {
     addLog(`${challenger.name} تحدى منع ${blocker.name}… وكان المنع صادقاً بامتلاك ${ROLE_DEFS[role].ar}.`, 'challenge');
+    showDramaBanner('الجدار كان حقيقياً', `${blocker.name} أثبت المنع، و${challenger.name} سيدفع.`, 'cyan');
     showProofModal(blocker, role, () => {
       requestLoseInfluence(challenger.id, () => {
         addLog(`نجح المنع. فشل إجراء ${ACTIONS[pending.actionKey].label}.`, 'block');
@@ -706,6 +912,7 @@ function resolveBlockChallenge(challengerId) {
     });
   } else {
     addLog(`${challenger.name} تحدى منع ${blocker.name}… والمنع كان كاذباً.`, 'challenge');
+    showDramaBanner('سقط المنع الكاذب', `${blocker.name} لا يملك ${ROLE_DEFS[role].ar}.`, 'red');
     requestLoseInfluence(blocker.id, () => {
       addLog(`فشل المنع. يستمر إجراء ${ACTIONS[pending.actionKey].label}.`);
       resolveAction();
@@ -729,18 +936,21 @@ function resolveAction() {
     case 'income':
       transferBankToPlayer(actor, 1);
       addLog(`${actor.name} أخذ دخلاً: عملة واحدة.`, 'coin');
+      showDramaBanner('دخل آمن', `${actor.name} يربح عملة بلا ضجيج.`, 'gold');
       playEffect('coin');
       finishTurn();
       break;
     case 'foreignAid':
       transferBankToPlayer(actor, 2);
       addLog(`${actor.name} حصل على مساعدات أجنبية: عملتان.`, 'coin');
+      showDramaBanner('المساعدة وصلت', `${actor.name} أخذ عملتين بعد عبور المنع.`, 'gold');
       playEffect('coin');
       finishTurn();
       break;
     case 'tax':
       transferBankToPlayer(actor, 3);
       addLog(`${actor.name} فرض الضرائب وأخذ 3 عملات.`, 'coin');
+      showDramaBanner('ذهب الدوق', `${actor.name} جمع 3 عملات ورفع تهديده.`, 'gold');
       playEffect('coin');
       burstAtPlayer(actor.id, 'gold');
       finishTurn();
@@ -748,6 +958,7 @@ function resolveAction() {
     case 'coup':
       if (target && target.alive) {
         addLog(`${actor.name} نفّذ انقلاباً مباشراً ضد ${target.name}. لا يمكن تحديه أو منعه.`, 'coup');
+        showDramaBanner('انقلاب لا يُرد', `${target.name} سيفقد تأثيراً الآن.`, 'red');
         playEffect('coup');
         shakeBoard();
         requestLoseInfluence(target.id, () => finishTurn(), `${target.name} خسر تأثيراً بسبب انقلاب ناجح.`);
@@ -761,6 +972,7 @@ function resolveAction() {
         target.coins -= amount;
         actor.coins += amount;
         addLog(`${actor.name} سرق ${amount} عملات من ${target.name}.`, 'steal');
+        showDramaBanner('سرقة ناجحة', `${actor.name} أخذ ${amount} عملات من ${target.name}.`, 'violet');
         playEffect('coin');
       }
       finishTurn();
@@ -768,6 +980,7 @@ function resolveAction() {
     case 'assassinate':
       if (target && target.alive) {
         addLog(`نجح الاغتيال ضد ${target.name}.`, 'assassinate');
+        showDramaBanner('الخنجر وصل', `${target.name} تحت حكم الاغتيال.`, 'red');
         playEffect('hit');
         shakeBoard();
         requestLoseInfluence(target.id, () => finishTurn(), `${target.name} خسر تأثيراً بسبب اغتيال ناجح.`);
@@ -813,12 +1026,14 @@ function requestLoseInfluence(playerId, after, reason) {
       const lostRole = player.cards[cardIndex].role;
       player.cards[cardIndex].revealed = true;
       addLog(`${player.name} كشف بطاقة ${ROLE_DEFS[lostRole].ar} وخسر تأثيراً.`, 'loss');
+      showDramaBanner('سقط تأثير', `${player.name} كشف ${ROLE_DEFS[lostRole].ar}.`, 'red');
       playEffect('loss');
       burstAtPlayer(player.id, 'red');
       if (hiddenCards(player).length === 0) {
         player.alive = false;
         player.coins = 0;
         addLog(`${player.name} خرج من اللعبة وأعاد عملاته إلى البنك.`, 'loss');
+        showDramaBanner('إقصاء من المجلس', `${player.name} خرج من اللعبة.`, 'red');
       }
       closeModal();
       if (checkWinner()) return;
@@ -839,6 +1054,7 @@ function startExchange(playerId) {
   const choices = [...currentHidden, ...drawn];
   state.phase = 'exchange';
   addLog(`${player.name} سحب ${drawn.length} بطاقة للتبادل.`);
+  showDramaBanner('أوراق جديدة في الظل', `${player.name} يسحب ${drawn.length} بطاقة للتبادل.`, 'cyan');
   playEffect('exchange');
   render();
   showExchangeModal(player, choices, revealed);
@@ -879,6 +1095,7 @@ function showExchangeModal(player, choices, revealedCards) {
     state.deck = shuffle([...back, ...state.deck]);
     player.cards = [...revealedCards, ...keep];
     addLog(`${player.name} أنهى التبادل واحتفظ ببطاقاته الجديدة.`);
+    showDramaBanner('الغموض عاد', `${player.name} أنهى التبادل.`, 'cyan');
     playEffect('exchange');
     closeModal();
     finishTurn();
@@ -900,6 +1117,7 @@ function finishTurn() {
   state.phase = 'chooseAction';
   state.pending = null;
   addLog(`انتهى دور ${previousName}. الدور التالي على ${nextName}.`, 'turn');
+  showDramaBanner('انتقال الكرسي', `${nextName} يستلم القرار.`, 'gold');
   playEffect('turn');
   render();
   showPassDeviceModal('انتهى الدور', false, previousName);
@@ -911,6 +1129,7 @@ function checkWinner() {
     state.phase = 'gameOver';
     state.pending = null;
     render();
+    showDramaBanner('انتهى الانقلاب', `${alive[0].name} بقي آخر صاحب نفوذ.`, 'gold');
     playEffect('win');
     confetti();
     showModal(`
@@ -932,6 +1151,7 @@ function showPassDeviceModal(title = 'مرّر الجهاز', firstTurn = false,
   state.phase = 'passDevice';
   render();
   const player = activePlayer();
+  showDramaBanner('مرّر الجهاز بسرّية', `${player.name} هو التالي.`, 'gold');
   const sequenceText = firstTurn
     ? `سيبدأ <strong>${escapeHtml(player.name)}</strong> الدور الأول.`
     : `انتهى دور <strong>${escapeHtml(previousPlayerName || 'اللاعب السابق')}</strong>. اللاعب التالي هو <strong>${escapeHtml(player.name)}</strong>.`;
@@ -1052,6 +1272,12 @@ function resetToSetup() {
   state.phase = 'setup';
   state.pending = null;
   state.log = [];
+  state.ui.lastDrama = {
+    title: 'الهدوء قبل أول كذبة',
+    text: 'كل قرار سيترك أثراً بصرياً واضحاً حتى يشعر اللاعبون بالضغط بدل انتظار دور رتيب.',
+    tone: 'gold'
+  };
+  renderDramaPanel();
   updateNameInputs();
   renderSettingsButtons();
 }
