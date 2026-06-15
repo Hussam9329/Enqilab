@@ -1,0 +1,11 @@
+{
+  "name": "enqilab",
+  "version": "1.0.0",
+  "description": "لعبة انقلاب — لعبة ورق استراتيجية مع غرف أونلاين",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["coup", "card-game", "inquilab"],
+  "license": "MIT"
+}

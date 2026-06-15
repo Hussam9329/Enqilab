@@ -79,6 +79,7 @@ const ACTIONS = {
 };
 
 const PHASE_LABELS = {
+  waiting: 'انتظار اللاعبين',
   setup: 'التجهيز',
   chooseAction: 'اختيار الإجراء',
   awaitChallenge: 'انتظار التحدي',
@@ -97,7 +98,8 @@ const PRESET_NAMES = {
 
 const STORAGE_KEYS = {
   sound: 'inquilab.sound',
-  visuals: 'inquilab.visuals'
+  visuals: 'inquilab.visuals',
+  online: 'inquilab.onlineRoom'
 };
 
 const state = {
@@ -119,6 +121,20 @@ const state = {
   settings: {
     sound: readBoolSetting(STORAGE_KEYS.sound, true),
     visuals: readBoolSetting(STORAGE_KEYS.visuals, true)
+  },
+  online: {
+    enabled: false,
+    code: '',
+    hostId: '',
+    playerId: null,
+    playerName: '',
+    isHost: false,
+    pollTimer: null,
+    modalKey: '',
+    lastVersion: 0,
+    lastPhase: '',
+    lastError: '',
+    ready: false
   },
   audio: {
     ctx: null,
@@ -149,6 +165,17 @@ const modalContent = $('#modalContent');
 const fxLayer = $('#fxLayer');
 const turnOrder = $('#turnOrder');
 const modalCloseButton = $('.modal-close');
+const onlineName = $('#onlineName');
+const createOnlineRoomBtn = $('#createOnlineRoom');
+const joinRoomCode = $('#joinRoomCode');
+const joinOnlineRoomBtn = $('#joinOnlineRoom');
+const onlineLobby = $('#onlineLobby');
+const onlineLobbyCode = $('#onlineLobbyCode');
+const onlineLobbyStatus = $('#onlineLobbyStatus');
+const onlinePlayersList = $('#onlinePlayersList');
+const onlineStartRoomGameBtn = $('#onlineStartRoomGame');
+const onlineLeaveRoomBtn = $('#onlineLeaveRoom');
+const copyRoomLinkBtn = $('#copyRoomLink');
 
 function readBoolSetting(key, fallback) {
   try {
@@ -166,6 +193,287 @@ function saveSetting(key, value) {
   } catch (error) {
     // Some embedded/file contexts block localStorage; the UI still works without persistence.
   }
+}
+
+
+
+function readJsonSetting(key, fallback = null) {
+  try {
+    const raw = window.localStorage?.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function saveJsonSetting(key, value) {
+  try {
+    if (value === null || value === undefined) window.localStorage?.removeItem(key);
+    else window.localStorage?.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    // Ignore persistence failures in embedded/file contexts.
+  }
+}
+
+function isOnlineMode() {
+  return Boolean(state.online.enabled && state.online.code);
+}
+
+function myOnlinePlayerId() {
+  return state.online.playerId === null || state.online.playerId === undefined ? null : Number(state.online.playerId);
+}
+
+function isMyOnlineTurn() {
+  return isOnlineMode() && activePlayer()?.id === myOnlinePlayerId() && state.phase === 'chooseAction';
+}
+
+function onlinePayload(extra = {}) {
+  return {
+    playerId: myOnlinePlayerId(),
+    hostId: state.online.hostId || undefined,
+    ...extra
+  };
+}
+
+async function onlineFetch(path, options = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (error) {
+    data = null;
+  }
+  if (!res.ok || data?.error) throw new Error(data?.error || 'تعذر الاتصال بالسيرفر');
+  return data;
+}
+
+async function onlinePost(actionPath, body = {}) {
+  if (!state.online.code) throw new Error('لا توجد غرفة نشطة');
+  const data = await onlineFetch(`/api/rooms/${encodeURIComponent(state.online.code)}${actionPath}`, {
+    method: 'POST',
+    body: JSON.stringify(onlinePayload(body))
+  });
+  applyOnlineRoom(data);
+  return data;
+}
+
+function saveOnlineSession() {
+  if (!isOnlineMode()) {
+    saveJsonSetting(STORAGE_KEYS.online, null);
+    return;
+  }
+  saveJsonSetting(STORAGE_KEYS.online, {
+    code: state.online.code,
+    hostId: state.online.hostId,
+    playerId: myOnlinePlayerId(),
+    playerName: state.online.playerName,
+    isHost: state.online.isHost
+  });
+}
+
+function setOnlineError(message = '') {
+  state.online.lastError = message;
+  if (onlineLobbyStatus) {
+    onlineLobbyStatus.textContent = message || (state.online.code ? 'الغرفة جاهزة.' : 'أنشئ غرفة أو ادخل برمز موجود.');
+    onlineLobbyStatus.classList.toggle('error', Boolean(message));
+  }
+}
+
+function applyOnlineRoom(room) {
+  if (!room || !room.code) return;
+  state.online.enabled = true;
+  state.online.code = room.code;
+  if (room.hostId) state.online.hostId = room.hostId;
+  if (room.playerId !== undefined && room.playerId !== null) state.online.playerId = Number(room.playerId);
+  if (room.playerName) state.online.playerName = room.playerName;
+  state.online.isHost = Boolean(room.isHost || state.online.hostId);
+  state.online.lastVersion = room.version || state.online.lastVersion;
+  state.online.blockOptions = room.blockOptions || [];
+  state.online.ready = true;
+  state.online.lastError = '';
+
+  state.players = room.players || [];
+  state.deck = Array.isArray(room.deck) ? room.deck : [];
+  state.bank = Infinity;
+  state.currentPlayer = Number(room.currentPlayer || 0);
+  state.phase = room.phase === 'waiting' ? 'waiting' : room.phase;
+  state.pending = room.pending || null;
+  state.log = room.log || [];
+  state.winner = room.winner;
+
+  saveOnlineSession();
+  renderOnlineLobby(room);
+  if (room.phase && room.phase !== 'waiting' && room.phase !== 'setup') {
+    setupScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    render();
+    showOnlinePhasePrompt();
+  } else {
+    setupScreen.classList.remove('hidden');
+    gameScreen.classList.add('hidden');
+  }
+}
+
+function renderOnlineLobby(room = null) {
+  if (!onlineLobby) return;
+  const active = isOnlineMode();
+  onlineLobby.classList.toggle('hidden', !active);
+  if (!active) return;
+  if (onlineLobbyCode) onlineLobbyCode.textContent = state.online.code;
+  const players = room?.players || state.players || [];
+  if (onlinePlayersList) {
+    onlinePlayersList.innerHTML = players.length
+      ? players.map((p) => `<li><span>${escapeHtml(p.name)}</span><small>${p.id === myOnlinePlayerId() ? 'أنت' : 'لاعب'}</small></li>`).join('')
+      : '<li><span>بانتظار اللاعبين…</span><small>—</small></li>';
+  }
+  if (onlineStartRoomGameBtn) {
+    onlineStartRoomGameBtn.hidden = !state.online.hostId;
+    onlineStartRoomGameBtn.disabled = players.length < 2 || room?.phase !== 'waiting';
+  }
+  const link = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(state.online.code)}`;
+  if (copyRoomLinkBtn) copyRoomLinkBtn.dataset.link = link;
+  const status = room?.phase === 'waiting'
+    ? `داخل الغرفة: ${players.length}/6. يبدأ المضيف عند وجود لاعبين على الأقل.`
+    : `اللعبة الآن في مرحلة: ${PHASE_LABELS[room?.phase] || room?.phase || '—'}`;
+  setOnlineError(state.online.lastError || status);
+}
+
+async function createOnlineRoom() {
+  const hostName = (onlineName?.value || '').trim() || 'المضيف';
+  try {
+    setOnlineError('جاري إنشاء الغرفة…');
+    const data = await onlineFetch('/api/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ hostName })
+    });
+    state.online.hostId = data.hostId;
+    state.online.playerId = Number(data.playerId);
+    state.online.playerName = hostName;
+    state.online.isHost = true;
+    state.online.code = data.code;
+    startOnlinePolling();
+    await fetchOnlineRoom();
+    showDramaBanner('تم إنشاء الغرفة', `الرمز: ${data.code}`, 'gold');
+  } catch (error) {
+    setOnlineError(error.message);
+  }
+}
+
+async function joinOnlineRoom() {
+  const code = (joinRoomCode?.value || '').trim().toUpperCase();
+  const playerName = (onlineName?.value || '').trim() || 'لاعب';
+  if (!code) {
+    setOnlineError('اكتب رمز الغرفة أولاً.');
+    return;
+  }
+  try {
+    setOnlineError('جاري الانضمام…');
+    const data = await onlineFetch(`/api/rooms/${encodeURIComponent(code)}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ playerName, hostId: state.online.hostId || undefined })
+    });
+    state.online.hostId = state.online.hostId || '';
+    state.online.playerId = Number(data.playerId);
+    state.online.playerName = playerName;
+    state.online.code = data.code;
+    state.online.isHost = Boolean(state.online.hostId);
+    startOnlinePolling();
+    applyOnlineRoom(data.room);
+    showDramaBanner('دخلت الغرفة', `رمز الغرفة: ${data.code}`, 'gold');
+  } catch (error) {
+    setOnlineError(error.message);
+  }
+}
+
+async function startOnlineRoomGame() {
+  if (!state.online.hostId) {
+    setOnlineError('فقط منشئ الغرفة يستطيع بدء اللعبة.');
+    return;
+  }
+  try {
+    setOnlineError('جاري بدء اللعبة…');
+    await onlinePost('/start', { hostId: state.online.hostId });
+    ensureAudio();
+    if (state.settings.sound) startMusic();
+    playEffect('start');
+    burstAtCenter('gold');
+  } catch (error) {
+    setOnlineError(error.message);
+  }
+}
+
+async function fetchOnlineRoom() {
+  if (!state.online.code) return;
+  try {
+    const qs = new URLSearchParams();
+    if (myOnlinePlayerId() !== null) qs.set('playerId', String(myOnlinePlayerId()));
+    if (state.online.hostId) qs.set('hostId', state.online.hostId);
+    const data = await onlineFetch(`/api/rooms/${encodeURIComponent(state.online.code)}?${qs.toString()}`);
+    const phaseChanged = data.phase !== state.online.lastPhase;
+    const versionChanged = data.version !== state.online.lastVersion;
+    applyOnlineRoom(data);
+    if (phaseChanged || versionChanged) {
+      state.online.lastPhase = data.phase;
+      if (data.phase === 'gameOver') confetti();
+    }
+  } catch (error) {
+    setOnlineError(error.message);
+  }
+}
+
+function startOnlinePolling() {
+  stopOnlinePolling();
+  state.online.enabled = true;
+  state.online.pollTimer = window.setInterval(fetchOnlineRoom, 1200);
+}
+
+function stopOnlinePolling() {
+  if (state.online.pollTimer) {
+    window.clearInterval(state.online.pollTimer);
+    state.online.pollTimer = null;
+  }
+}
+
+function leaveOnlineRoom() {
+  stopOnlinePolling();
+  state.online = {
+    enabled: false,
+    code: '',
+    hostId: '',
+    playerId: null,
+    playerName: '',
+    isHost: false,
+    pollTimer: null,
+    modalKey: '',
+    lastVersion: 0,
+    lastPhase: '',
+    lastError: '',
+    ready: false
+  };
+  saveOnlineSession();
+  closeModal();
+  resetToSetup();
+  renderOnlineLobby();
+}
+
+async function restoreOnlineSessionFromUrlOrStorage() {
+  const params = new URLSearchParams(window.location.search);
+  const roomFromUrl = params.get('room');
+  const saved = readJsonSetting(STORAGE_KEYS.online, null);
+  if (roomFromUrl && joinRoomCode) joinRoomCode.value = roomFromUrl.toUpperCase();
+  if (!saved?.code || roomFromUrl) return;
+  state.online.enabled = true;
+  state.online.code = saved.code;
+  state.online.hostId = saved.hostId || '';
+  state.online.playerId = saved.playerId ?? null;
+  state.online.playerName = saved.playerName || '';
+  state.online.isHost = Boolean(saved.hostId);
+  startOnlinePolling();
+  await fetchOnlineRoom();
 }
 
 function shuffle(list) {
@@ -418,7 +726,7 @@ function startGame() {
 
 function render() {
   const actor = activePlayer();
-  $('#turnTitle').textContent = state.phase === 'gameOver' ? 'انتهى الصراع' : actor?.name || '—';
+  $('#turnTitle').textContent = state.phase === 'gameOver' ? 'انتهى الصراع' : state.phase === 'waiting' ? 'بانتظار اللاعبين' : actor?.name || '—';
   $('#bankCoins').textContent = Number.isFinite(state.bank) ? state.bank : '∞';
   $('#deckCount').textContent = state.deck.length;
   const liveCounter = $('#livePlayersCount');
@@ -468,6 +776,8 @@ function renderTurnOrder() {
 
 function getPhaseHint() {
   const actor = activePlayer();
+  if (state.phase === 'waiting') return 'شارك رمز الغرفة مع اللاعبين، ثم يبدأ المضيف اللعبة.';
+  if (isOnlineMode() && state.phase === 'chooseAction' && !isMyOnlineTurn()) return `انتظار دور ${actor?.name || 'اللاعب الحالي'} — تستطيع متابعة المجلس فقط.`;
   if (state.phase === 'chooseAction' && actor?.coins >= 10) return 'تنبيه مهم: لديك 10 عملات أو أكثر، لذلك كل الأزرار تقفل ما عدا الانقلاب.';
   if (state.phase === 'chooseAction') return 'اختر حركة واحدة. الأزرار تشرح نفسها، ولا تحتاج حفظ القواعد.';
   if (state.phase === 'awaitChallenge') return 'الآن لحظة الشك: هل يصدقه الآخرون أم يتحدونه؟';
@@ -517,6 +827,7 @@ function getActionDisabledReason(actionKey) {
   const action = ACTIONS[actionKey];
   if (state.phase !== 'chooseAction') return 'انتظر حل المرحلة الحالية';
   if (!player || !player.alive) return 'اللاعب خارج اللعبة';
+  if (isOnlineMode() && player.id !== myOnlinePlayerId()) return 'ليس دورك الآن';
   if (player.coins >= 10 && actionKey !== 'coup') return 'الانقلاب إجباري عند 10 عملات';
   if (player.coins < action.cost) return `تحتاج ${action.cost} عملات`;
   if (action.target && validTargets(player.id, actionKey).length === 0) return 'لا يوجد هدف صالح';
@@ -641,8 +952,17 @@ function validTargets(actorId, actionKey = null) {
   });
 }
 
-function beginAction(actionKey, targetId) {
+async function beginAction(actionKey, targetId) {
   closeModal();
+  if (isOnlineMode()) {
+    try {
+      await onlinePost('/action', { actionKey, targetId });
+    } catch (error) {
+      setOnlineError(error.message);
+      showDramaBanner('تعذر تنفيذ الحركة', error.message, 'red');
+    }
+    return;
+  }
   const actor = activePlayer();
   const action = ACTIONS[actionKey];
   if (actor.coins < action.cost) return;
@@ -1243,6 +1563,279 @@ function showRules() {
   `, false);
 }
 
+
+
+function onlinePromptKey() {
+  const pendingId = state.pending?.id || 'none';
+  const mine = myOnlinePlayerId();
+  const marker = [state.phase, pendingId, mine, state.pending?.responses?.challengeMine, state.pending?.responses?.blockMine, state.pending?.responses?.blockChallengeMine, state.pending?.lose?.playerId, state.pending?.exchange?.playerId, state.online.lastVersion].join(':');
+  return marker;
+}
+
+function shouldShowOnlinePrompt() {
+  return isOnlineMode() && !['setup', 'waiting', 'chooseAction'].includes(state.phase);
+}
+
+function showOnlinePhasePrompt() {
+  if (!shouldShowOnlinePrompt()) {
+    if (state.phase === 'chooseAction' && modal.open && modal.dataset.onlinePrompt === 'true') closeModal();
+    state.online.modalKey = '';
+    return;
+  }
+  const key = onlinePromptKey();
+  if (state.online.modalKey === key && modal.open) return;
+  state.online.modalKey = key;
+  modal.dataset.onlinePrompt = 'true';
+
+  if (state.phase === 'awaitChallenge') return showOnlineChallengePrompt();
+  if (state.phase === 'awaitBlock') return showOnlineBlockPrompt();
+  if (state.phase === 'awaitBlockChallenge') return showOnlineBlockChallengePrompt();
+  if (state.phase === 'loseInfluence') return showOnlineLoseInfluencePrompt();
+  if (state.phase === 'exchange') return showOnlineExchangePrompt();
+  if (state.phase === 'gameOver') return showOnlineGameOverPrompt();
+}
+
+function onlineWaitHtml(title, text, detail = '') {
+  return `
+    <h2>${escapeHtml(title)}</h2>
+    <p>${escapeHtml(text)}</p>
+    ${detail ? `<div class="quick-note">${detail}</div>` : ''}
+    <button class="btn btn-ghost" value="cancel" data-close-online-wait>إخفاء النافذة والمتابعة من الطاولة</button>
+  `;
+}
+
+function bindOnlineWaitClose() {
+  $('[data-close-online-wait]', modalContent)?.addEventListener('click', () => closeModal());
+}
+
+function showOnlineChallengePrompt() {
+  const pending = state.pending;
+  const actor = state.players[pending.actorId];
+  const role = ROLE_DEFS[pending.claimRole];
+  const mine = myOnlinePlayerId();
+  const eligible = state.players.some((p) => p.id === mine && p.alive && p.id !== pending.actorId);
+  const already = pending.responses?.challengeMine;
+  const progress = `${pending.responses?.challengeCount || 0}/${pending.responses?.challengeNeeded || 0}`;
+
+  if (eligible && !already) {
+    showModal(`
+      <h2>لحظة الشك</h2>
+      <p><strong>${escapeHtml(actor.name)}</strong> يدّعي امتلاك <strong>${role.ar}</strong>. قرارك أنت فقط: تتحدى أم تمرّر؟</p>
+      <div class="claim-card">
+        <img src="${role.image}" alt="${roleAlt(pending.claimRole)}" />
+        <div><strong>${role.ar}</strong><small>${role.power}</small></div>
+      </div>
+      <div class="option-grid">
+        <button class="btn btn-danger" id="onlineChallengeYes" value="cancel">أتحدى الادعاء</button>
+        <button class="btn btn-primary" id="onlineChallengePass" value="cancel">أمرّر التحدي</button>
+      </div>
+      <div class="quick-note">قرارات التمرير المسجلة: ${progress}</div>
+    `, true);
+    $('#onlineChallengeYes').addEventListener('click', () => submitOnlineChallenge(true));
+    $('#onlineChallengePass').addEventListener('click', () => submitOnlineChallenge(false));
+    return;
+  }
+
+  showModal(onlineWaitHtml('انتظار قرارات التحدي', already ? 'تم تسجيل قرارك. ننتظر بقية اللاعبين.' : 'أنت لست مؤهلاً للتحدي في هذه اللحظة.', `التقدم: ${progress}`), false);
+  bindOnlineWaitClose();
+}
+
+async function submitOnlineChallenge(challenge) {
+  try {
+    closeModal();
+    await onlinePost('/challenge', { challenge });
+  } catch (error) {
+    setOnlineError(error.message);
+    showDramaBanner('تعذر تسجيل التحدي', error.message, 'red');
+  }
+}
+
+function showOnlineBlockPrompt() {
+  const pending = state.pending;
+  const action = ACTIONS[pending.actionKey];
+  const mine = myOnlinePlayerId();
+  const options = (state.online.blockOptions || []).filter((item) => item.playerId === mine);
+  const already = pending.responses?.blockMine;
+  const progress = `${pending.responses?.blockCount || 0}/${pending.responses?.blockNeeded || 0}`;
+
+  if (options.length && !already) {
+    showModal(`
+      <h2>نافذة المنع</h2>
+      <p>الإجراء <strong>${action.label}</strong> يمكن منعه الآن. اختر بطاقة المنع التي تريد ادعاءها أو مرّر.</p>
+      <div class="option-grid">
+        ${options.map((item) => `<button class="btn btn-ghost" data-online-block-role="${item.role}" value="cancel"><strong>أمنع بـ ${ROLE_DEFS[item.role].ar}</strong><small>هذا ادعاء قابل للتحدي</small></button>`).join('')}
+        <button class="btn btn-primary" id="onlineBlockPass" value="cancel">لا أمنع</button>
+      </div>
+      <div class="quick-note">قرارات المنع المسجلة: ${progress}</div>
+    `, true);
+    $$('[data-online-block-role]', modalContent).forEach((btn) => {
+      btn.addEventListener('click', () => submitOnlineBlock(btn.dataset.onlineBlockRole, false));
+    });
+    $('#onlineBlockPass').addEventListener('click', () => submitOnlineBlock(null, true));
+    return;
+  }
+
+  showModal(onlineWaitHtml('انتظار قرارات المنع', already ? 'تم تسجيل قرارك. ننتظر بقية اللاعبين المؤهلين.' : 'أنت لست صاحب قرار منع في هذه الحركة.', `التقدم: ${progress}`), false);
+  bindOnlineWaitClose();
+}
+
+async function submitOnlineBlock(role, pass) {
+  try {
+    closeModal();
+    await onlinePost('/block', { role, pass });
+  } catch (error) {
+    setOnlineError(error.message);
+    showDramaBanner('تعذر تسجيل المنع', error.message, 'red');
+  }
+}
+
+function showOnlineBlockChallengePrompt() {
+  const pending = state.pending;
+  const blocker = state.players[pending.block.playerId];
+  const role = ROLE_DEFS[pending.block.role];
+  const mine = myOnlinePlayerId();
+  const eligible = state.players.some((p) => p.id === mine && p.alive && p.id !== pending.block.playerId);
+  const already = pending.responses?.blockChallengeMine;
+  const progress = `${pending.responses?.blockChallengeCount || 0}/${pending.responses?.blockChallengeNeeded || 0}`;
+
+  if (eligible && !already) {
+    showModal(`
+      <h2>هل الجدار حقيقي؟</h2>
+      <p><strong>${escapeHtml(blocker.name)}</strong> يدّعي امتلاك <strong>${role.ar}</strong> لمنع الإجراء. هل تتحدى المنع؟</p>
+      <div class="claim-card">
+        <img src="${role.image}" alt="${roleAlt(pending.block.role)}" />
+        <div><strong>${role.ar}</strong><small>${role.power}</small></div>
+      </div>
+      <div class="option-grid">
+        <button class="btn btn-danger" id="onlineBlockChallengeYes" value="cancel">أتحدى المنع</button>
+        <button class="btn btn-primary" id="onlineBlockChallengePass" value="cancel">أقبل المنع / أمرّر</button>
+      </div>
+      <div class="quick-note">قرارات تحدي المنع: ${progress}</div>
+    `, true);
+    $('#onlineBlockChallengeYes').addEventListener('click', () => submitOnlineBlockChallenge(true));
+    $('#onlineBlockChallengePass').addEventListener('click', () => submitOnlineBlockChallenge(false));
+    return;
+  }
+
+  showModal(onlineWaitHtml('انتظار تحدي المنع', already ? 'تم تسجيل قرارك. ننتظر بقية اللاعبين.' : 'أنت لست مؤهلاً لتحدي هذا المنع.', `التقدم: ${progress}`), false);
+  bindOnlineWaitClose();
+}
+
+async function submitOnlineBlockChallenge(challenge) {
+  try {
+    closeModal();
+    await onlinePost('/block-challenge', { challenge });
+  } catch (error) {
+    setOnlineError(error.message);
+    showDramaBanner('تعذر تسجيل القرار', error.message, 'red');
+  }
+}
+
+function showOnlineLoseInfluencePrompt() {
+  const pending = state.pending;
+  const loss = pending?.lose;
+  const player = state.players[loss?.playerId];
+  const mine = myOnlinePlayerId();
+  if (!loss || !player) return;
+
+  if (loss.playerId === mine) {
+    const hiddenIndexes = player.cards.map((card, i) => ({ card, i })).filter((x) => !x.card.revealed);
+    showModal(`
+      <h2>يجب أن تخسر تأثيراً</h2>
+      <p>${escapeHtml(loss.reason || 'اختر بطاقة مخفية لكشفها.')}</p>
+      <div class="choose-cards">
+        ${hiddenIndexes.map(({ card, i }) => `
+          <button class="pick-card card-pick" data-online-lose="${i}" value="cancel">
+            ${renderPickCardContent(card.role, 'اكشف هذه البطاقة وخسر تأثيراً')}
+          </button>
+        `).join('')}
+      </div>
+    `, true);
+    $$('[data-online-lose]', modalContent).forEach((btn) => {
+      btn.addEventListener('click', () => submitOnlineLose(Number(btn.dataset.onlineLose)));
+    });
+    return;
+  }
+
+  showModal(onlineWaitHtml('انتظار خسارة تأثير', `${player.name} يختار البطاقة التي سيكشفها.`, escapeHtml(loss.reason || '')), false);
+  bindOnlineWaitClose();
+}
+
+async function submitOnlineLose(cardIndex) {
+  try {
+    closeModal();
+    await onlinePost('/lose', { cardIndex });
+  } catch (error) {
+    setOnlineError(error.message);
+    showDramaBanner('تعذر كشف البطاقة', error.message, 'red');
+  }
+}
+
+function showOnlineExchangePrompt() {
+  const exchange = state.pending?.exchange;
+  const mine = myOnlinePlayerId();
+  if (!exchange) return;
+  const player = state.players[exchange.playerId];
+
+  if (exchange.playerId === mine) {
+    let selected = new Set();
+    showModal(`
+      <h2>تبادل السفير</h2>
+      <p>اختر ${exchange.maxKeep} بطاقة للاحتفاظ بها. الباقي يعود لكومة الاحتياط مخلوطاً.</p>
+      <div class="choose-cards">
+        ${exchange.choices.map((card, i) => `
+          <button class="pick-card card-pick" data-online-pick="${i}" type="button">
+            ${renderPickCardContent(card.role, card.fromDeck ? 'من كومة الاحتياط' : 'من بطاقاتك الحالية')}
+          </button>
+        `).join('')}
+      </div>
+      <button class="btn btn-primary" id="onlineConfirmExchange" disabled value="cancel">تأكيد التبادل</button>
+    `, true);
+    $$('[data-online-pick]', modalContent).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.onlinePick);
+        if (selected.has(idx)) {
+          selected.delete(idx);
+          btn.classList.remove('selected');
+        } else if (selected.size < exchange.maxKeep) {
+          selected.add(idx);
+          btn.classList.add('selected');
+        }
+        $('#onlineConfirmExchange').disabled = selected.size !== exchange.maxKeep;
+        playEffect('select');
+      });
+    });
+    $('#onlineConfirmExchange').addEventListener('click', () => submitOnlineExchange([...selected]));
+    return;
+  }
+
+  showModal(onlineWaitHtml('انتظار التبادل', `${player?.name || 'اللاعب'} يرتب بطاقاته الآن.`, 'لن تظهر اختياراته لبقية اللاعبين.'), false);
+  bindOnlineWaitClose();
+}
+
+async function submitOnlineExchange(keepIndexes) {
+  try {
+    closeModal();
+    await onlinePost('/exchange', { keepIndexes });
+  } catch (error) {
+    setOnlineError(error.message);
+    showDramaBanner('تعذر إنهاء التبادل', error.message, 'red');
+  }
+}
+
+function showOnlineGameOverPrompt() {
+  const winner = state.players.find((p) => p.id === state.winner) || livePlayers()[0];
+  showModal(`
+    <div class="winner-screen">
+      <div class="crown">👑</div>
+      <h2>${escapeHtml(winner?.name || 'لاعب')} انتصر في الانقلاب</h2>
+      <p>بقي آخر صاحب نفوذ في المجلس. يمكن للمضيف إنشاء غرفة جديدة من شاشة البداية.</p>
+      <button class="btn btn-primary" id="onlineBackToSetup" value="cancel">العودة للبداية</button>
+    </div>
+  `, true);
+  $('#onlineBackToSetup').addEventListener('click', leaveOnlineRoom);
+}
+
 function showModal(html, locked = isCriticalPhase()) {
   modalContent.innerHTML = html;
   modal.dataset.locked = locked ? 'true' : 'false';
@@ -1251,6 +1844,7 @@ function showModal(html, locked = isCriticalPhase()) {
 }
 
 function closeModal() {
+  modal.dataset.onlinePrompt = 'false';
   modal.dataset.locked = 'false';
   modal.classList.remove('locked');
   if (modal.open) modal.close();
@@ -1456,10 +2050,18 @@ function escapeHtml(value) {
 playerCount.addEventListener('change', updateNameInputs);
 namePreset.addEventListener('change', updateNameInputs);
 $('#startGame').addEventListener('click', startGame);
-$('#newGame').addEventListener('click', resetToSetup);
+$('#newGame').addEventListener('click', () => {
+  if (isOnlineMode()) {
+    leaveOnlineRoom();
+    return;
+  }
+  resetToSetup();
+});
 $('#showMyCards').addEventListener('click', () => {
   if (!state.players.length || state.phase === 'setup' || state.phase === 'gameOver') return;
-  showCards(state.currentPlayer);
+  const playerIndex = isOnlineMode() ? myOnlinePlayerId() : state.currentPlayer;
+  if (playerIndex === null || playerIndex === undefined || !state.players[playerIndex]) return;
+  showCards(playerIndex);
 });
 $('#openRules').addEventListener('click', showRules);
 $('#soundToggle').addEventListener('click', toggleSound);
@@ -1484,5 +2086,20 @@ modal.addEventListener('cancel', (event) => {
   if (modal.dataset.locked === 'true') event.preventDefault();
 });
 
+createOnlineRoomBtn?.addEventListener('click', createOnlineRoom);
+joinOnlineRoomBtn?.addEventListener('click', joinOnlineRoom);
+onlineStartRoomGameBtn?.addEventListener('click', startOnlineRoomGame);
+onlineLeaveRoomBtn?.addEventListener('click', leaveOnlineRoom);
+copyRoomLinkBtn?.addEventListener('click', async () => {
+  const link = copyRoomLinkBtn.dataset.link || `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(state.online.code)}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    setOnlineError('تم نسخ رابط الغرفة.');
+  } catch (error) {
+    setOnlineError(`رابط الغرفة: ${link}`);
+  }
+});
+
 updateNameInputs();
 renderSettingsButtons();
+restoreOnlineSessionFromUrlOrStorage();

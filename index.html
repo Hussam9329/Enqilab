@@ -49,8 +49,8 @@
             </article>
             <article>
               <strong>2</strong>
-              <span>مرّر الجهاز بأمان</span>
-              <small>كل لاعب يرى بطاقاته وحده.</small>
+              <span>مرّر الجهاز أو العب أونلاين</span>
+              <small>في الغرف كل لاعب يرى بطاقاته فقط.</small>
             </article>
             <article>
               <strong>3</strong>
@@ -90,6 +90,38 @@
           </div>
 
           <div id="playerNames" class="player-name-list" aria-label="أسماء اللاعبين"></div>
+
+          <div class="online-room-panel">
+            <div class="panel-title compact">
+              <span>غرفة أونلاين</span>
+              <small>نفس منطق الغرف: إنشاء، رمز، انضمام، مزامنة</small>
+            </div>
+            <label class="field">
+              <span>اسمك داخل الغرفة</span>
+              <input id="onlineName" maxlength="24" placeholder="مثلاً: حسين" autocomplete="off" />
+            </label>
+            <div class="online-actions">
+              <button id="createOnlineRoom" class="btn btn-primary" type="button">إنشاء غرفة</button>
+              <label class="field room-code-field">
+                <span>رمز الغرفة</span>
+                <input id="joinRoomCode" maxlength="6" placeholder="ABC123" autocomplete="off" dir="ltr" />
+              </label>
+              <button id="joinOnlineRoom" class="btn btn-ghost" type="button">انضمام</button>
+            </div>
+            <div id="onlineLobby" class="online-lobby hidden">
+              <div class="room-code-card">
+                <span>رمز الغرفة</span>
+                <strong id="onlineLobbyCode">—</strong>
+              </div>
+              <p id="onlineLobbyStatus">أنشئ غرفة أو ادخل برمز موجود.</p>
+              <ul id="onlinePlayersList" class="online-player-list"></ul>
+              <div class="online-actions lobby-actions">
+                <button id="onlineStartRoomGame" class="btn btn-primary" type="button">بدء لعبة الغرفة</button>
+                <button id="copyRoomLink" class="btn btn-ghost" type="button">نسخ رابط الدعوة</button>
+                <button id="onlineLeaveRoom" class="btn btn-danger" type="button">ترك الغرفة</button>
+              </div>
+            </div>
+          </div>
 
           <div class="hero-actions">
             <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
