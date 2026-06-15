@@ -103,7 +103,6 @@ const STORAGE_KEYS = {
 const state = {
   players: [],
   deck: [],
-  discardPool: [],
   bank: Infinity,
   currentPlayer: 0,
   phase: 'setup',
@@ -134,6 +133,8 @@ const eventLog = $('#eventLog');
 const modal = $('#modal');
 const modalContent = $('#modalContent');
 const fxLayer = $('#fxLayer');
+const turnOrder = $('#turnOrder');
+const modalCloseButton = $('.modal-close');
 
 function readBoolSetting(key, fallback) {
   const saved = localStorage.getItem(key);
@@ -236,7 +237,6 @@ function startGame() {
 
   state.players = players;
   state.deck = deck;
-  state.discardPool = [];
   state.bank = Infinity;
   state.currentPlayer = Math.floor(Math.random() * count);
   state.phase = 'chooseAction';
@@ -264,9 +264,40 @@ function render() {
   $('#soundToggle').textContent = state.settings.sound ? 'الصوت: تشغيل' : 'الصوت: إيقاف';
   $('#visualToggle').textContent = state.settings.visuals ? 'المؤثرات: تشغيل' : 'المؤثرات: إيقاف';
   document.body.classList.toggle('fx-off', !state.settings.visuals);
+  renderTurnOrder();
   renderActions();
   renderPlayers();
   renderLog();
+}
+
+function renderTurnOrder() {
+  if (!turnOrder) return;
+  if (!state.players.length) {
+    turnOrder.innerHTML = '';
+    return;
+  }
+  const nextIndex = state.phase === 'gameOver' ? -1 : nextAliveIndex(state.currentPlayer);
+  turnOrder.innerHTML = state.players.map((player, index) => {
+    const classes = ['turn-seat'];
+    let stateLabel = 'ينتظر';
+    if (!player.alive) {
+      classes.push('out');
+      stateLabel = 'خارج';
+    } else if (state.phase !== 'gameOver' && index === state.currentPlayer) {
+      classes.push('current');
+      stateLabel = 'اللاعب الحالي';
+    } else if (state.phase !== 'gameOver' && index === nextIndex && nextIndex !== state.currentPlayer) {
+      classes.push('next');
+      stateLabel = 'التالي';
+    }
+
+    return `
+      <article class="${classes.join(' ')}">
+        <strong>${escapeHtml(player.name)}</strong>
+        <small>${stateLabel}</small>
+      </article>
+    `;
+  }).join('');
 }
 
 function getPhaseHint() {
@@ -275,10 +306,10 @@ function getPhaseHint() {
   if (state.phase === 'chooseAction') return 'اختر حركة واحدة. الأزرار تشرح نفسها، ولا تحتاج حفظ القواعد.';
   if (state.phase === 'awaitChallenge') return 'الآن لحظة الشك: هل يصدقه الآخرون أم يتحدونه؟';
   if (state.phase === 'awaitBlock') return 'قبل تنفيذ الحركة، أعطِ فرصة للمنع إذا كان القانون يسمح.';
-  if (state.phase === 'awaitBlockChallenge') return 'صاحب الحركة فقط يقرر: يقبل المنع أو يتحدى صدقه.';
+  if (state.phase === 'awaitBlockChallenge') return 'أي لاعب آخر يستطيع تحدي المنع، وإلا يُقبل المنع وينتهي الإجراء.';
   if (state.phase === 'loseInfluence') return 'اللاعب يختار بنفسه أي بطاقة مخفية يكشفها ويخسرها.';
   if (state.phase === 'exchange') return 'اختر البطاقات التي تريد الاحتفاظ بها، والباقي يعود لكومة الاحتياط.';
-  if (state.phase === 'passDevice') return 'مرّر الجهاز بدون النظر، ثم اللاعب الحالي يفتح بطاقاته وحده.';
+  if (state.phase === 'passDevice') return 'مرّر الجهاز إلى اللاعب التالي. بعدها يفتح بطاقاته الخاصة ثم يبدأ دوره.';
   if (state.phase === 'gameOver') return 'انتهى الصراع وتم إعلان الفائز.';
   return '—';
 }
@@ -356,15 +387,8 @@ function renderPlayers() {
       <div class="card-row">
         ${player.cards.map((c) => renderInfluence(c)).join('')}
       </div>
-      <div class="player-actions">
-        ${player.alive ? `<button class="mini-btn" data-view="${index}">عرض خاص للبطاقات</button>` : ''}
-      </div>
     `;
     playersGrid.appendChild(card);
-  });
-
-  $$('[data-view]', playersGrid).forEach((btn) => {
-    btn.addEventListener('click', () => showCards(Number(btn.dataset.view)));
   });
 }
 
@@ -535,25 +559,48 @@ function resolveClaimChallenge(challengerId) {
     });
   } else {
     addLog(`${challenger.name} تحدى ${actor.name}… وانكشفت الكذبة. لا يملك ${actor.name} ${ROLE_DEFS[role].ar}.`, 'challenge');
+    refundActionCost(pending);
     requestLoseInfluence(actor.id, () => {
+      if (ACTIONS[pending.actionKey].cost) {
+        addLog(`أُعيدت تكلفة ${ACTIONS[pending.actionKey].label} إلى ${actor.name} لأن التحدي ضد الادعاء كان ناجحاً.`, 'coin');
+      }
       addLog(`فشل إجراء ${ACTIONS[pending.actionKey].label} بسبب التحدي الناجح.`);
       finishTurn();
     }, `${actor.name} خسر تأثيراً بسبب ادعاء كاذب.`);
   }
 }
 
+function replaceProvenInfluence(player, role) {
+  const cardIndex = player.cards.findIndex((card) => !card.revealed && card.role === role);
+  if (cardIndex === -1) return;
+
+  state.deck.push(role);
+  state.deck = shuffle(state.deck);
+
+  const replacement = state.deck.pop();
+  player.cards[cardIndex] = { role: replacement, revealed: false };
+}
+
+function refundActionCost(pending) {
+  const action = ACTIONS[pending?.actionKey];
+  if (!action?.cost) return;
+  const actor = state.players[pending.actorId];
+  if (actor?.alive) actor.coins += action.cost;
+}
+
 function showProofModal(player, role, after) {
   const roleDef = ROLE_DEFS[role];
   showModal(`
     <h2>تم إثبات الادعاء</h2>
-    <p><strong>${escapeHtml(player.name)}</strong> يملك بالفعل <strong>${roleDef.ar}</strong>. حسب القاعدة المرسلة، البطاقة لا تُخسر وتعود مخفية.</p>
+    <p><strong>${escapeHtml(player.name)}</strong> يملك بالفعل <strong>${roleDef.ar}</strong>. تُكشف البطاقة لإثبات الادعاء، ثم تعود إلى كومة المحكمة ويأخذ اللاعب بطاقة بديلة عشوائية للحفاظ على الغموض.</p>
     <div class="proof-card">
       <img src="${roleDef.image}" alt="${roleAlt(role)}" />
       <strong>${roleDef.ar}</strong>
     </div>
-    <button class="btn btn-primary" id="continueAfterProof" value="cancel">متابعة وحل خسارة المتحدي</button>
+    <button class="btn btn-primary" id="continueAfterProof" value="cancel">متابعة</button>
   `, true);
   $('#continueAfterProof').addEventListener('click', () => {
+    replaceProvenInfluence(player, role);
     closeModal();
     after?.();
   });
@@ -616,21 +663,23 @@ function declareBlock({ player, role }) {
 function showBlockChallengeModal() {
   const pending = state.pending;
   const blocker = state.players[pending.block.playerId];
-  const actor = state.players[pending.actorId];
   const role = ROLE_DEFS[pending.block.role];
+  const challengers = state.players.filter((p) => p.alive && p.id !== blocker.id);
   showModal(`
     <h2>هل يتم تحدي المنع؟</h2>
-    <p><strong>${escapeHtml(blocker.name)}</strong> يدّعي امتلاك <strong>${role.ar}</strong> لمنع الإجراء. صاحب الإجراء فقط يستطيع تحدي هذا المنع.</p>
+    <p><strong>${escapeHtml(blocker.name)}</strong> يدّعي امتلاك <strong>${role.ar}</strong> لمنع الإجراء. أي لاعب حي آخر يستطيع تحدي هذا المنع.</p>
     <div class="claim-card">
       <img src="${role.image}" alt="${roleAlt(pending.block.role)}" />
       <div><strong>${role.ar}</strong><small>${role.power}</small></div>
     </div>
     <div class="option-grid">
-      <button class="btn btn-danger" id="challengeBlock" value="cancel">${escapeHtml(actor.name)} يتحدى المنع</button>
-      <button class="btn btn-primary" id="acceptBlock" value="cancel">قبول المنع</button>
+      ${challengers.map((p) => `<button class="btn btn-danger" data-block-challenge="${p.id}" value="cancel">${escapeHtml(p.name)} يتحدى المنع</button>`).join('')}
+      <button class="btn btn-primary" id="acceptBlock" value="cancel">لا يوجد تحدي — قبول المنع</button>
     </div>
   `);
-  $('#challengeBlock').addEventListener('click', () => resolveBlockChallenge());
+  $$('[data-block-challenge]', modalContent).forEach((btn) => {
+    btn.addEventListener('click', () => resolveBlockChallenge(Number(btn.dataset.blockChallenge)));
+  });
   $('#acceptBlock').addEventListener('click', () => {
     closeModal();
     addLog(`تم قبول المنع. فشل إجراء ${ACTIONS[pending.actionKey].label}.`, 'block');
@@ -638,25 +687,25 @@ function showBlockChallengeModal() {
   });
 }
 
-function resolveBlockChallenge() {
+function resolveBlockChallenge(challengerId) {
   closeModal();
   const pending = state.pending;
   const blocker = state.players[pending.block.playerId];
-  const actor = state.players[pending.actorId];
+  const challenger = state.players[challengerId];
   const role = pending.block.role;
   const honest = playerHasRole(blocker, role);
   playEffect('challenge');
 
   if (honest) {
-    addLog(`${actor.name} تحدى منع ${blocker.name}… وكان المنع صادقاً بامتلاك ${ROLE_DEFS[role].ar}.`, 'challenge');
+    addLog(`${challenger.name} تحدى منع ${blocker.name}… وكان المنع صادقاً بامتلاك ${ROLE_DEFS[role].ar}.`, 'challenge');
     showProofModal(blocker, role, () => {
-      requestLoseInfluence(actor.id, () => {
+      requestLoseInfluence(challenger.id, () => {
         addLog(`نجح المنع. فشل إجراء ${ACTIONS[pending.actionKey].label}.`, 'block');
         finishTurn();
-      }, `${actor.name} خسر تأثيراً بسبب تحدي منع صحيح.`);
+      }, `${challenger.name} خسر تأثيراً بسبب تحدي منع صحيح.`);
     });
   } else {
-    addLog(`${actor.name} تحدى منع ${blocker.name}… والمنع كان كاذباً.`, 'challenge');
+    addLog(`${challenger.name} تحدى منع ${blocker.name}… والمنع كان كاذباً.`, 'challenge');
     requestLoseInfluence(blocker.id, () => {
       addLog(`فشل المنع. يستمر إجراء ${ACTIONS[pending.actionKey].label}.`);
       resolveAction();
@@ -763,13 +812,13 @@ function requestLoseInfluence(playerId, after, reason) {
       const cardIndex = Number(btn.dataset.lose);
       const lostRole = player.cards[cardIndex].role;
       player.cards[cardIndex].revealed = true;
-      state.discardPool.push(lostRole);
       addLog(`${player.name} كشف بطاقة ${ROLE_DEFS[lostRole].ar} وخسر تأثيراً.`, 'loss');
       playEffect('loss');
       burstAtPlayer(player.id, 'red');
       if (hiddenCards(player).length === 0) {
         player.alive = false;
-        addLog(`${player.name} خرج من اللعبة.`, 'loss');
+        player.coins = 0;
+        addLog(`${player.name} خرج من اللعبة وأعاد عملاته إلى البنك.`, 'loss');
       }
       closeModal();
       if (checkWinner()) return;
@@ -838,24 +887,22 @@ function showExchangeModal(player, choices, revealedCards) {
 
 function refillDeckIfNeeded(minimum = 2) {
   if (state.deck.length >= minimum) return;
-  if (state.discardPool.length > 0) {
-    state.deck = shuffle([...state.deck, ...state.discardPool]);
-    state.discardPool = [];
-    addLog('تم خلط البطاقات المكشوفة الخارجة لتغذية كومة الاحتياط عند الحاجة.');
-  }
+  state.deck = shuffle([...state.deck]);
 }
 
 function finishTurn() {
   closeModal();
   if (checkWinner()) return;
   const previous = state.currentPlayer;
+  const previousName = state.players[previous]?.name || 'اللاعب السابق';
   state.currentPlayer = nextAliveIndex(previous);
+  const nextName = activePlayer().name;
   state.phase = 'chooseAction';
   state.pending = null;
-  addLog(`انتقل الدور إلى ${activePlayer().name}.`, 'turn');
+  addLog(`انتهى دور ${previousName}. الدور التالي على ${nextName}.`, 'turn');
   playEffect('turn');
   render();
-  showPassDeviceModal('مرّر الجهاز', false);
+  showPassDeviceModal('انتهى الدور', false, previousName);
 }
 
 function checkWinner() {
@@ -880,22 +927,34 @@ function checkWinner() {
   return false;
 }
 
-function showPassDeviceModal(title = 'مرّر الجهاز', firstTurn = false) {
+function showPassDeviceModal(title = 'مرّر الجهاز', firstTurn = false, previousPlayerName = null) {
   if (state.phase === 'gameOver') return;
   state.phase = 'passDevice';
   render();
   const player = activePlayer();
+  const sequenceText = firstTurn
+    ? `سيبدأ <strong>${escapeHtml(player.name)}</strong> الدور الأول.`
+    : `انتهى دور <strong>${escapeHtml(previousPlayerName || 'اللاعب السابق')}</strong>. اللاعب التالي هو <strong>${escapeHtml(player.name)}</strong>.`;
   showModal(`
     <h2>${title}</h2>
-    <p>أعطِ الجهاز إلى <strong>${escapeHtml(player.name)}</strong>. بعد الضغط على الزر يمكنه فتح بطاقاته الخاصة بدون أن يراها الآخرون.</p>
+    <p>${sequenceText} مرّر الجهاز الآن بدون أن ينظر بقية اللاعبين.</p>
     <div class="privacy-card">
       <span>🔒</span>
       <strong>${escapeHtml(player.name)}</strong>
       <small>${player.coins} عملات · ${hiddenCards(player).length} تأثير مخفي</small>
     </div>
-    <button class="btn btn-primary" id="beginPrivateTurn" value="cancel">${firstTurn ? 'جاهز للبدء' : 'جاهز للدور'}</button>
+    <div class="option-grid">
+      <button class="btn btn-primary" id="beginPrivateTurn" value="cancel">${firstTurn ? 'عرض بطاقاتي وابدأ' : 'عرض بطاقاتي وابدأ دوري'}</button>
+      <button class="btn btn-ghost" id="startWithoutView" value="cancel">بدء الدور مباشرة</button>
+    </div>
   `, true);
   $('#beginPrivateTurn').addEventListener('click', () => {
+    closeModal();
+    state.phase = 'chooseAction';
+    render();
+    showCards(state.currentPlayer);
+  });
+  $('#startWithoutView').addEventListener('click', () => {
     closeModal();
     state.phase = 'chooseAction';
     render();
@@ -906,7 +965,7 @@ function showCards(playerIndex) {
   const player = state.players[playerIndex];
   showModal(`
     <h2>بطاقات ${escapeHtml(player.name)}</h2>
-    <p>استخدم هذه النافذة كعرض خاص، ثم أغلقها قبل تمرير الجهاز.</p>
+    <p>هذه النافذة خاصة باللاعب الحالي فقط. راجع بطاقاتك ثم أغلقها لتختار إجراءً واحداً في دورك.</p>
     <div class="card-view-grid">
       ${player.cards.map((card) => {
         const role = ROLE_DEFS[card.role];
@@ -955,7 +1014,7 @@ function showRules() {
         <h3>التحدي والمنع</h3>
         <ul class="rules-list">
           <li>أي ادعاء شخصية يمكن تحديه. الخاسر في التحدي يكشف بطاقة ويخسر تأثيراً.</li>
-          <li>إذا كان المدّعي صادقاً، يثبت بطاقته ثم تعود مخفية ولا يخسرها، ويخسر المتحدي تأثيراً.</li>
+          <li>إذا كان المدّعي صادقاً، يكشف البطاقة لإثبات الادعاء ثم يعيدها إلى الكومة ويأخذ بطاقة بديلة، بينما يخسر المتحدي تأثيراً.</li>
           <li>إذا فشل منع الكونتيسة ضد اغتيال بعد تحديه، يخسر الهدف تأثيراً بسبب كذب المنع ثم يستمر الاغتيال إن بقي لديه تأثير.</li>
           <li>آخر لاعب لديه بطاقة مخفية واحدة على الأقل هو الفائز.</li>
         </ul>
@@ -988,7 +1047,6 @@ function resetToSetup() {
   gameScreen.classList.add('hidden');
   state.players = [];
   state.deck = [];
-  state.discardPool = [];
   state.bank = Infinity;
   state.currentPlayer = 0;
   state.phase = 'setup';
@@ -1173,10 +1231,21 @@ playerCount.addEventListener('change', updateNameInputs);
 namePreset.addEventListener('change', updateNameInputs);
 $('#startGame').addEventListener('click', startGame);
 $('#newGame').addEventListener('click', resetToSetup);
-$('#showMyCards').addEventListener('click', () => showCards(state.currentPlayer));
+$('#showMyCards').addEventListener('click', () => {
+  if (!state.players.length || state.phase === 'setup' || state.phase === 'gameOver') return;
+  showCards(state.currentPlayer);
+});
 $('#openRules').addEventListener('click', showRules);
 $('#soundToggle').addEventListener('click', toggleSound);
 $('#visualToggle').addEventListener('click', toggleVisuals);
+
+modalCloseButton?.addEventListener('click', () => {
+  if (modal.dataset.locked === 'true') {
+    playEffect('deny');
+    return;
+  }
+  closeModal();
+});
 
 modal.addEventListener('click', (event) => {
   if (modal.dataset.locked === 'true') return;

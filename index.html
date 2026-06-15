@@ -149,6 +149,14 @@
         </article>
       </section>
 
+      <section class="glass-panel turn-order-panel" aria-label="ترتيب الأدوار">
+        <div class="panel-title compact">
+          <span>ترتيب الأدوار</span>
+          <small>الحالي ← التالي</small>
+        </div>
+        <div id="turnOrder" class="turn-order"></div>
+      </section>
+
       <section class="board-layout">
         <aside class="glass-panel action-panel">
           <div class="panel-title">
@@ -196,7 +204,7 @@
 
   <dialog id="modal" class="modal">
     <form method="dialog" class="modal-card glass-panel">
-      <button class="modal-close" value="cancel" aria-label="إغلاق">×</button>
+      <button class="modal-close" type="button" aria-label="إغلاق">×</button>
       <div id="modalContent"></div>
     </form>
   </dialog>

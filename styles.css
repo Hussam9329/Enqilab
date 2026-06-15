@@ -19,6 +19,7 @@
   --radius-xl: 34px;
   --radius-lg: 26px;
   --radius-md: 18px;
+  --card-back-image: url('assets/cards/card-back.png');
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Arial, sans-serif;
 }
 
@@ -195,18 +196,25 @@ h1 { margin: 8px 0 12px; font-size: clamp(5.5rem, 14vw, 13rem); line-height: .76
 .badge.warning { color: var(--gold2); border-color: rgba(249,200,108,.38); background: rgba(249,200,108,.10); }
 .badge.danger { color: #ffd8df; border-color: rgba(255,79,109,.50); background: rgba(255,79,109,.16); }
 .card-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; position: relative; z-index: 1; }
-.influence-card { aspect-ratio: 9/14; border-radius: 18px; border: 1px solid rgba(255,255,255,.13); position: relative; overflow: hidden; display: grid; place-items: center; text-align: center; background: rgba(0,0,0,.28); }
-.influence-card.hidden-card { border-color: rgba(249,200,108,.38); background:
-  radial-gradient(circle at 50% 22%, rgba(249,200,108,.20), transparent 34%),
-  linear-gradient(150deg, #15100d, #09080d 60%, #23160d);
-  box-shadow: inset 0 0 0 2px rgba(0,0,0,.28), inset 0 0 0 7px rgba(249,200,108,.055);
+.influence-card {
+  aspect-ratio: 9/14;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.13);
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background: linear-gradient(rgba(5,5,8,.18), rgba(5,5,8,.34)), var(--card-back-image) center/cover no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(249,200,108,.14), inset 0 0 0 6px rgba(0,0,0,.22);
 }
-.influence-card.hidden-card::before { content: "انقلاب"; position: absolute; inset: 11px; display: grid; place-items: center; border: 1px solid rgba(249,200,108,.22); border-radius: 13px; color: rgba(255,231,168,.88); font-weight: 950; letter-spacing: .07em; text-shadow: 0 0 24px rgba(249,200,108,.36); }
+.influence-card.hidden-card { border-color: rgba(249,200,108,.38); }
+.influence-card.hidden-card::before { content: "انقلاب"; position: absolute; inset: 11px; display: grid; place-items: center; border: 1px solid rgba(249,200,108,.22); border-radius: 13px; color: rgba(255,231,168,.88); font-weight: 950; letter-spacing: .07em; text-shadow: 0 0 24px rgba(249,200,108,.36); background: linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.38)); }
 .influence-card.hidden-card span { position: absolute; bottom: 11px; inset-inline: 8px; color: var(--muted); font-size: .74rem; }
-.influence-card.revealed { border-color: rgba(255,79,109,.32); background: #050506; }
-.card-art-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.card-art-mini::after { content: ""; position: absolute; inset: auto 0 0; height: 44%; background: linear-gradient(transparent, rgba(0,0,0,.88)); pointer-events: none; }
-.card-art-mini strong { position: absolute; right: 8px; left: 8px; bottom: 8px; z-index: 1; color: var(--gold2); font-size: .9rem; text-shadow: 0 2px 10px #000; }
+.influence-card.revealed { border-color: rgba(255,79,109,.32); padding: 6px; }
+.card-art-mini img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 12px; }
+.card-art-mini::after { content: ""; position: absolute; inset: auto 6px 6px; height: 44%; border-radius: 0 0 12px 12px; background: linear-gradient(transparent, rgba(0,0,0,.88)); pointer-events: none; }
+.card-art-mini strong { position: absolute; right: 14px; left: 14px; bottom: 12px; z-index: 1; color: var(--gold2); font-size: .9rem; text-shadow: 0 2px 10px #000; }
 .player-actions { display: flex; gap: 8px; margin-top: 12px; position: relative; z-index: 1; }
 .mini-btn { min-height: 38px; border-radius: 999px; border: 1px solid var(--line2); background: rgba(255,255,255,.075); color: var(--ink); padding: 7px 11px; font-size: .82rem; }
 .mini-btn:hover { border-color: rgba(249,200,108,.44); }
@@ -243,29 +251,29 @@ h1 { margin: 8px 0 12px; font-size: clamp(5.5rem, 14vw, 13rem); line-height: .76
 .option-grid .btn { width: 100%; border-radius: 18px; min-height: 58px; }
 .option-grid small { display: block; color: var(--muted); margin-top: 4px; }
 .claim-card { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; border: 1px solid var(--line2); border-radius: 22px; padding: 12px; background: rgba(0,0,0,.24); margin: 14px 0; }
-.claim-card img { width: 96px; aspect-ratio: 9/14; object-fit: cover; border-radius: 14px; border: 1px solid rgba(249,200,108,.35); }
+.claim-card img { width: 96px; aspect-ratio: 9/14; object-fit: cover; border-radius: 14px; border: 1px solid rgba(249,200,108,.35); background: linear-gradient(rgba(5,5,8,.12), rgba(5,5,8,.28)), var(--card-back-image) center/cover no-repeat; }
 .claim-card strong { display: block; color: var(--gold2); }
 .claim-card small { display: block; color: var(--muted); line-height: 1.55; margin-top: 4px; }
-.proof-card { width: min(280px, 80vw); margin: 16px auto; border-radius: 24px; overflow: hidden; border: 1px solid rgba(249,200,108,.42); background: #050506; box-shadow: 0 22px 70px rgba(0,0,0,.42); text-align: center; }
-.proof-card img { width: 100%; display: block; }
+.proof-card { width: min(280px, 80vw); margin: 16px auto; border-radius: 24px; overflow: hidden; border: 1px solid rgba(249,200,108,.42); background: linear-gradient(rgba(5,5,8,.18), rgba(5,5,8,.30)), var(--card-back-image) center/cover no-repeat; box-shadow: 0 22px 70px rgba(0,0,0,.42); text-align: center; padding: 6px; }
+.proof-card img { width: 100%; display: block; border-radius: 18px; }
 .proof-card strong { display: block; padding: 11px; color: var(--gold2); }
 .choose-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 18px 0; }
 .pick-card { border-radius: 20px; border: 1px solid var(--line2); background: rgba(255,255,255,.06); color: var(--ink); min-height: 132px; padding: 12px; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .pick-card:hover { transform: translateY(-2px); border-color: rgba(249,200,108,.54); }
 .pick-card.selected { outline: 3px solid var(--gold); background: rgba(249,200,108,.13); box-shadow: 0 0 0 7px rgba(249,200,108,.12); }
-.pick-card.card-pick { min-height: 302px; padding: 0; overflow: hidden; display: grid; grid-template-rows: 1fr auto; background: #050506; border-color: rgba(249,200,108,.28); }
-.pick-card-img { width: 100%; height: 100%; min-height: 0; object-fit: contain; background: #050506; display: block; }
-.pick-card-caption { display: grid; gap: 4px; padding: 10px 12px 12px; border-top: 1px solid rgba(249,200,108,.18); background: rgba(0,0,0,.72); }
+.pick-card.card-pick { min-height: 302px; padding: 6px; overflow: hidden; display: grid; grid-template-rows: 1fr auto; background: linear-gradient(rgba(5,5,8,.18), rgba(5,5,8,.30)), var(--card-back-image) center/cover no-repeat; border-color: rgba(249,200,108,.28); }
+.pick-card-img { width: 100%; height: 100%; min-height: 0; object-fit: contain; background: transparent; display: block; border-radius: 16px 16px 0 0; }
+.pick-card-caption { display: grid; gap: 4px; padding: 10px 12px 12px; border-top: 1px solid rgba(249,200,108,.18); background: rgba(0,0,0,.72); border-radius: 0 0 16px 16px; }
 .pick-card-caption strong { color: var(--gold2); }
 .pick-card-caption small { color: var(--muted); line-height: 1.45; }
 .card-view-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 18px; }
-.full-role-card { position: relative; border-radius: 24px; overflow: hidden; background: #050506; border: 1px solid rgba(249,200,108,.38); box-shadow: 0 22px 70px rgba(0,0,0,.38); }
-.full-role-card img { width: 100%; max-height: 72dvh; object-fit: contain; display: block; background: #050506; }
+.full-role-card { position: relative; border-radius: 24px; overflow: hidden; background: linear-gradient(rgba(5,5,8,.18), rgba(5,5,8,.30)), var(--card-back-image) center/cover no-repeat; border: 1px solid rgba(249,200,108,.38); box-shadow: 0 22px 70px rgba(0,0,0,.38); padding: 8px; }
+.full-role-card img { width: 100%; max-height: 72dvh; object-fit: contain; display: block; background: transparent; border-radius: 18px; }
 .full-role-card.is-revealed img { filter: grayscale(.88) brightness(.72); }
 .full-role-status { position: absolute; top: 12px; right: 12px; left: 12px; text-align: center; color: #fff8e9; background: rgba(0,0,0,.68); border: 1px solid rgba(249,200,108,.28); border-radius: 999px; padding: 8px 10px; font-weight: 900; backdrop-filter: blur(8px); }
 .rules-card-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); gap: 10px; margin: 12px 0 18px; }
 .rules-card { display: grid; gap: 7px; justify-items: center; color: var(--gold2); font-weight: 950; }
-.rules-card img { width: 100%; max-width: 132px; aspect-ratio: 9/14; object-fit: cover; border-radius: 14px; border: 1px solid rgba(249,200,108,.34); box-shadow: 0 10px 30px rgba(0,0,0,.30); background: #050506; }
+.rules-card img { width: 100%; max-width: 132px; aspect-ratio: 9/14; object-fit: cover; border-radius: 14px; border: 1px solid rgba(249,200,108,.34); box-shadow: 0 10px 30px rgba(0,0,0,.30); background: linear-gradient(rgba(5,5,8,.12), rgba(5,5,8,.28)), var(--card-back-image) center/cover no-repeat; }
 .rules-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 14px; }
 .rules-sections section { border: 1px solid var(--line2); background: rgba(0,0,0,.20); border-radius: 24px; padding: 14px; }
 .winner-screen { text-align: center; padding: 24px; }
@@ -291,6 +299,7 @@ h1 { margin: 8px 0 12px; font-size: clamp(5.5rem, 14vw, 13rem); line-height: .76
   .brand-panel { min-height: auto; }
   .setup-console { width: min(760px, 100%); justify-self: center; }
   .board-layout { grid-template-columns: 1fr; }
+  .turn-order { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
   .action-panel, .guide-panel { position: static; max-height: none; }
   .action-list { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   .topbar { grid-template-columns: 1fr; }
@@ -305,6 +314,7 @@ h1 { margin: 8px 0 12px; font-size: clamp(5.5rem, 14vw, 13rem); line-height: .76
   .subtitle { font-size: 1rem; }
   .promise-grid, .setup-grid, .hero-actions, .status-grid { grid-template-columns: 1fr; }
   .status-grid { gap: 9px; }
+  .turn-order-panel { padding: 14px; }
   .status-card { min-height: 90px; }
   .players-panel { min-height: auto; padding: 0; }
   .table-ring { display: none; }
