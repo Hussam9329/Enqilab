@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>انقلاب — لعبة خداع خرافية</title>
+  <meta name="description" content="نسخة ويب عربية احترافية من لعبة Coup بطابع خرافي: خداع، تحديات، اغتيالات، وسلطة." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div class="noise"></div>
+
+  <main class="shell">
+    <section id="setupScreen" class="screen setup-screen">
+      <div class="hero-card glass-panel">
+        <div class="eyebrow">مجلس الظلال يقدم</div>
+        <h1>انقلاب</h1>
+        <p class="subtitle">لعبة نفوذ وخداع حيث كل بطاقة قد تكون عرشاً… أو مقصلة.</p>
+
+        <div class="card-showcase" aria-label="استعراض بطاقات الشخصيات">
+          <img src="assets/cards/captain.webp" alt="بطاقة القبطان" />
+          <img src="assets/cards/assassin.webp" alt="بطاقة السفاح" />
+          <img src="assets/cards/duke.webp" alt="بطاقة الدوق" />
+          <img src="assets/cards/contessa.webp" alt="بطاقة الكونتيسة" />
+          <img src="assets/cards/ambassador.webp" alt="بطاقة السفير" />
+        </div>
+
+        <div class="setup-grid">
+          <label class="field">
+            <span>عدد اللاعبين</span>
+            <select id="playerCount">
+              <option value="2">2 لاعبين</option>
+              <option value="3" selected>3 لاعبين</option>
+              <option value="4">4 لاعبين</option>
+              <option value="5">5 لاعبين</option>
+              <option value="6">6 لاعبين</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>نسق الأسماء</span>
+            <select id="namePreset">
+              <option value="royal" selected>ملكي خرافي</option>
+              <option value="neutral">لاعب 1، لاعب 2...</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="playerNames" class="player-name-list"></div>
+
+        <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
+        <button id="openRules" class="btn btn-ghost">عرض ورقة القواعد السريعة</button>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen game-screen hidden">
+      <header class="topbar glass-panel">
+        <div>
+          <div class="eyebrow">الدور الحالي</div>
+          <h2 id="turnTitle">—</h2>
+        </div>
+        <div class="topbar-actions">
+          <button id="showMyCards" class="btn btn-ghost">عرض بطاقات اللاعب الحالي</button>
+          <button id="newGame" class="btn btn-danger">لعبة جديدة</button>
+        </div>
+      </header>
+
+      <section class="status-grid">
+        <article class="glass-panel status-card">
+          <span>البنك</span>
+          <strong id="bankCoins">—</strong>
+          <small>عملة متاحة</small>
+        </article>
+        <article class="glass-panel status-card">
+          <span>كومة الاحتياط</span>
+          <strong id="deckCount">—</strong>
+          <small>بطاقة مخفية</small>
+        </article>
+        <article class="glass-panel status-card phase-card">
+          <span>المرحلة</span>
+          <strong id="phaseLabel">—</strong>
+          <small id="phaseHint">اختر إجراءً واحداً.</small>
+        </article>
+      </section>
+
+      <section class="board-layout">
+        <aside class="glass-panel action-panel">
+          <h3>إجراءات الدور</h3>
+          <div id="actionList" class="action-list"></div>
+        </aside>
+
+        <section class="players-panel">
+          <div id="playersGrid" class="players-grid"></div>
+        </section>
+
+        <aside class="glass-panel log-panel">
+          <h3>سجل المجلس</h3>
+          <div id="eventLog" class="event-log"></div>
+        </aside>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" class="modal-card glass-panel">
+      <button class="modal-close" value="cancel" aria-label="إغلاق">×</button>
+      <div id="modalContent"></div>
+    </form>
+  </dialog>
+
+  <template id="targetTemplate">
+    <button class="target-option"></button>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
