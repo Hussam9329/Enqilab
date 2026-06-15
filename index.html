@@ -2,107 +2,193 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>انقلاب — لعبة خداع خرافية</title>
-  <meta name="description" content="انقلاب: نسخة ويب عربية متكاملة من Coup مع تحديات، منع، انقلاب إجباري، مؤثرات بصرية، وموسيقى للأجهزة اللوحية والهواتف والحواسيب." />
-  <meta name="theme-color" content="#08070f" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>انقلاب — تجربة Coup عربية فاخرة</title>
+  <meta name="description" content="انقلاب: نسخة عربية فاخرة ومبسطة من Coup، مصممة للهواتف والآيباد والحواسيب مع قواعد كاملة ومؤثرات سينمائية." />
+  <meta name="theme-color" content="#07060c" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
-  <div class="noise"></div>
+  <div class="backdrop" aria-hidden="true">
+    <span class="orb orb-gold"></span>
+    <span class="orb orb-violet"></span>
+    <span class="orb orb-crimson"></span>
+    <span class="grid-glow"></span>
+    <span class="grain"></span>
+  </div>
   <div id="fxLayer" class="fx-layer" aria-hidden="true"></div>
 
   <main class="shell">
     <section id="setupScreen" class="screen setup-screen">
-      <div class="hero-card glass-panel">
-        <div class="eyebrow">مجلس الظلال يقدم</div>
-        <h1>انقلاب</h1>
-        <p class="subtitle">لعبة نفوذ وخداع حيث كل بطاقة قد تكون عرشاً… أو مقصلة.</p>
+      <div class="setup-stage">
+        <section class="brand-panel glass-panel">
+          <div class="brand-kicker">مجلس الظلال · Bluffing Royale</div>
+          <h1>انقلاب</h1>
+          <p class="subtitle">نسخة Coup عربية فاخرة: بسيطة للعب من أول دقيقة، لكنها تبدو كأنها لعبة Premium على آيباد أو شاشة كبيرة.</p>
 
-        <div class="card-showcase" aria-label="استعراض بطاقات الشخصيات">
-          <img src="assets/cards/captain.webp" alt="بطاقة القبطان" />
-          <img src="assets/cards/assassin.webp" alt="بطاقة السفاح" />
-          <img src="assets/cards/duke.webp" alt="بطاقة الدوق" />
-          <img src="assets/cards/contessa.webp" alt="بطاقة الكونتيسة" />
-          <img src="assets/cards/ambassador.webp" alt="بطاقة السفير" />
-        </div>
+          <div class="hero-metrics" aria-label="معلومات سريعة">
+            <span>2–6 لاعبين</span>
+            <span>10–20 دقيقة</span>
+            <span>13+</span>
+            <span>خداع · تحدي · إقصاء</span>
+          </div>
 
-        <div class="setup-grid">
-          <label class="field">
-            <span>عدد اللاعبين</span>
-            <select id="playerCount">
-              <option value="2">2 لاعبين</option>
-              <option value="3" selected>3 لاعبين</option>
-              <option value="4">4 لاعبين</option>
-              <option value="5">5 لاعبين</option>
-              <option value="6">6 لاعبين</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>نسق الأسماء</span>
-            <select id="namePreset">
-              <option value="royal" selected>ملكي خرافي</option>
-              <option value="neutral">لاعب 1، لاعب 2...</option>
-            </select>
-          </label>
-        </div>
+          <div class="card-showcase" aria-label="استعراض بطاقات الشخصيات">
+            <img src="assets/cards/captain.webp" alt="بطاقة القبطان" />
+            <img src="assets/cards/assassin.webp" alt="بطاقة السفاح" />
+            <img src="assets/cards/duke.webp" alt="بطاقة الدوق" />
+            <img src="assets/cards/contessa.webp" alt="بطاقة الكونتيسة" />
+            <img src="assets/cards/ambassador.webp" alt="بطاقة السفير" />
+          </div>
 
-        <div id="playerNames" class="player-name-list"></div>
+          <div class="promise-grid">
+            <article>
+              <strong>1</strong>
+              <span>اختر اللاعبين</span>
+              <small>أسماء جاهزة أو مخصصة.</small>
+            </article>
+            <article>
+              <strong>2</strong>
+              <span>مرّر الجهاز بأمان</span>
+              <small>كل لاعب يرى بطاقاته وحده.</small>
+            </article>
+            <article>
+              <strong>3</strong>
+              <span>اللعبة تقود القواعد</span>
+              <small>تحدي، منع، انقلاب إجباري.</small>
+            </article>
+          </div>
+        </section>
 
-        <div class="hero-actions">
-          <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
-          <button id="openRules" class="btn btn-ghost">عرض ورقة القواعد السريعة</button>
-        </div>
+        <aside class="setup-console glass-panel">
+          <div class="console-head">
+            <span class="status-dot"></span>
+            <div>
+              <strong>إعداد لعبة جديدة</strong>
+              <small>مصمم ليكون واضح حتى لمن لم يلعب Coup من قبل.</small>
+            </div>
+          </div>
+
+          <div class="setup-grid">
+            <label class="field">
+              <span>عدد اللاعبين</span>
+              <select id="playerCount">
+                <option value="2">2 لاعبين</option>
+                <option value="3" selected>3 لاعبين</option>
+                <option value="4">4 لاعبين</option>
+                <option value="5">5 لاعبين</option>
+                <option value="6">6 لاعبين</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>نمط الأسماء</span>
+              <select id="namePreset">
+                <option value="royal" selected>ملكي خرافي</option>
+                <option value="neutral">لاعب 1، لاعب 2...</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="playerNames" class="player-name-list" aria-label="أسماء اللاعبين"></div>
+
+          <div class="hero-actions">
+            <button id="startGame" class="btn btn-primary pulse">ابدأ الانقلاب</button>
+            <button id="openRules" class="btn btn-ghost">القواعد السريعة</button>
+          </div>
+
+          <div class="quick-note">
+            <b>قاعدة ذهبية:</b> آخر لاعب لديه بطاقة مخفية واحدة على الأقل هو الفائز.
+          </div>
+        </aside>
       </div>
     </section>
 
     <section id="gameScreen" class="screen game-screen hidden">
       <header class="topbar glass-panel">
-        <div>
-          <div class="eyebrow">الدور الحالي</div>
-          <h2 id="turnTitle">—</h2>
+        <div class="turn-identity">
+          <div class="turn-avatar">♛</div>
+          <div>
+            <span class="eyebrow">الدور الآن</span>
+            <h2 id="turnTitle">—</h2>
+          </div>
         </div>
+
+        <div class="phase-chip">
+          <span id="phaseLabel">—</span>
+          <small id="phaseHint">اختر إجراءً واحداً.</small>
+        </div>
+
         <div class="topbar-actions">
-          <button id="showMyCards" class="btn btn-ghost">عرض بطاقات اللاعب الحالي</button>
+          <button id="showMyCards" class="btn btn-primary">بطاقاتي</button>
           <button id="soundToggle" class="btn btn-ghost" type="button">الصوت: تشغيل</button>
           <button id="visualToggle" class="btn btn-ghost" type="button">المؤثرات: تشغيل</button>
           <button id="newGame" class="btn btn-danger">لعبة جديدة</button>
         </div>
       </header>
 
-      <section class="status-grid">
-        <article class="glass-panel status-card">
+      <section class="status-grid" aria-label="حالة اللعبة">
+        <article class="glass-panel status-card status-bank">
           <span>البنك</span>
           <strong id="bankCoins">—</strong>
-          <small>عملات غير محدودة</small>
+          <small>العملات غير محدودة</small>
         </article>
-        <article class="glass-panel status-card">
+        <article class="glass-panel status-card status-deck">
           <span>كومة الاحتياط</span>
           <strong id="deckCount">—</strong>
-          <small>بطاقة مخفية</small>
+          <small>بطاقات التبادل</small>
         </article>
-        <article class="glass-panel status-card phase-card">
-          <span>المرحلة</span>
-          <strong id="phaseLabel">—</strong>
-          <small id="phaseHint">اختر إجراءً واحداً.</small>
+        <article class="glass-panel status-card status-live">
+          <span>المتبقون</span>
+          <strong id="livePlayersCount">—</strong>
+          <small>لاعبون داخل الصراع</small>
+        </article>
+        <article class="glass-panel status-card status-rule">
+          <span>تذكير سريع</span>
+          <strong>10</strong>
+          <small>عملات = انقلاب إجباري</small>
         </article>
       </section>
 
       <section class="board-layout">
         <aside class="glass-panel action-panel">
-          <h3>إجراءات الدور</h3>
+          <div class="panel-title">
+            <span>نفّذ حركة</span>
+            <small>اختر زر واحد فقط في دورك</small>
+          </div>
           <div id="actionList" class="action-list"></div>
         </aside>
 
-        <section class="players-panel">
+        <section class="players-panel" aria-label="طاولة اللاعبين">
+          <div class="table-ring" aria-hidden="true"></div>
           <div id="playersGrid" class="players-grid"></div>
         </section>
 
-        <aside class="glass-panel log-panel">
-          <h3>سجل المجلس</h3>
-          <div id="eventLog" class="event-log"></div>
+        <aside class="glass-panel guide-panel">
+          <div class="coach-card">
+            <span class="coach-icon">✦</span>
+            <div>
+              <h3>المساعد الذكي</h3>
+              <p>اتبع النوافذ التي تظهر لك: اللعبة ستسأل عن التحدي، المنع، واختيار البطاقة عند الخسارة.</p>
+            </div>
+          </div>
+
+          <div class="mini-rules">
+            <h3>أسهل ملخص</h3>
+            <ul>
+              <li><b>الدخل:</b> آمن، عملة واحدة.</li>
+              <li><b>المساعدة:</b> عملتان، يمكن منعها بالدوق.</li>
+              <li><b>الانقلاب:</b> 7 عملات، لا يُمنع ولا يُتحدى.</li>
+              <li><b>الشخصيات:</b> يمكن الكذب، لكن التحدي مؤلم.</li>
+            </ul>
+          </div>
+
+          <div class="log-panel">
+            <div class="panel-title compact">
+              <span>سجل المجلس</span>
+              <small>آخر الأحداث</small>
+            </div>
+            <div id="eventLog" class="event-log"></div>
+          </div>
         </aside>
       </section>
     </section>

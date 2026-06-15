@@ -35,38 +35,45 @@ const ROLE_DEFS = {
 
 const ACTIONS = {
   income: {
-    label: 'الدخل', claim: null,
-    description: 'خذ عملة واحدة من البنك. لا يمكن تحديه أو منعه.',
+    label: 'الدخل', icon: '🪙', claim: null,
+    simple: 'آمن ومضمون',
+    description: 'خذ عملة واحدة فوراً. لا تحدي ولا منع.',
     target: false, cost: 0, unblockable: true, basic: true
   },
   foreignAid: {
-    label: 'المساعدات الأجنبية', claim: null,
-    description: 'خذ عملتين من البنك. يمكن لأي لاعب ادعاء الدوق لمنعها.',
+    label: 'المساعدة الأجنبية', icon: '🤝', claim: null,
+    simple: 'عملتان مع مخاطرة منع',
+    description: 'خذ عملتين من البنك. أي لاعب قد يمنعك بادعاء الدوق.',
     target: false, cost: 0, unblockable: false, basic: true
   },
   coup: {
-    label: 'الانقلاب', claim: null,
-    description: 'ادفع 7 عملات واجعل لاعباً يخسر تأثيراً. لا تحدي ولا منع. إجباري عند 10 عملات.',
+    label: 'الانقلاب', icon: '💥', claim: null,
+    simple: 'ضربة لا تُوقف',
+    description: 'ادفع 7 عملات واجعل خصماً يخسر تأثيراً. إجباري عند 10 عملات.',
     target: true, cost: 7, unblockable: true, basic: true, forceAt: 10
   },
   tax: {
-    label: 'الضرائب', claim: 'Duke',
-    description: 'ادّعِ أنك الدوق وخذ 3 عملات من البنك.',
+    label: 'الضرائب', icon: '👑', claim: 'Duke',
+    simple: 'ادّعِ الدوق',
+    description: 'قل إنك الدوق وخذ 3 عملات. يمكن تحديك.',
     target: false, cost: 0
   },
   assassinate: {
-    label: 'الاغتيال', claim: 'Assassin',
-    description: 'ادّعِ أنك السفاح، ادفع 3 عملات، واجعل خصماً يخسر تأثيراً.',
+    label: 'الاغتيال', icon: '🗡️', claim: 'Assassin',
+    simple: 'ادفع 3 واقتل تأثيراً',
+    description: 'ادّعِ السفاح، ادفع 3 عملات، واختر هدفاً. الكونتيسة قد تمنع.',
     target: true, cost: 3
   },
   steal: {
-    label: 'السرقة', claim: 'Captain',
-    description: 'ادّعِ أنك القبطان واسرق حتى عملتين من خصم لديه عملات.',
+    label: 'السرقة', icon: '⚓', claim: 'Captain',
+    simple: 'خذ حتى عملتين',
+    description: 'ادّعِ القبطان واسرق من لاعب لديه عملات. القبطان أو السفير يمنعان.',
     target: true, cost: 0
   },
   exchange: {
-    label: 'التبادل', claim: 'Ambassador',
-    description: 'ادّعِ أنك السفير، اسحب بطاقتين، واحتفظ ببطاقات مخفية بعدد تأثيراتك.',
+    label: 'التبادل', icon: '🕊️', claim: 'Ambassador',
+    simple: 'رتّب بطاقاتك',
+    description: 'ادّعِ السفير، اسحب بطاقتين، واحتفظ بالأفضل حسب تأثيراتك المخفية.',
     target: false, cost: 0
   }
 };
@@ -250,6 +257,8 @@ function render() {
   $('#turnTitle').textContent = state.phase === 'gameOver' ? 'انتهى الصراع' : actor?.name || '—';
   $('#bankCoins').textContent = Number.isFinite(state.bank) ? state.bank : '∞';
   $('#deckCount').textContent = state.deck.length;
+  const liveCounter = $('#livePlayersCount');
+  if (liveCounter) liveCounter.textContent = livePlayers().length;
   $('#phaseLabel').textContent = PHASE_LABELS[state.phase] || '—';
   $('#phaseHint').textContent = getPhaseHint();
   $('#soundToggle').textContent = state.settings.sound ? 'الصوت: تشغيل' : 'الصوت: إيقاف';
@@ -262,15 +271,15 @@ function render() {
 
 function getPhaseHint() {
   const actor = activePlayer();
-  if (state.phase === 'chooseAction' && actor?.coins >= 10) return 'لديك 10 عملات أو أكثر: يجب تنفيذ الانقلاب الآن.';
-  if (state.phase === 'chooseAction') return 'اختر إجراءً واحداً لتنفيذه.';
-  if (state.phase === 'awaitChallenge') return 'يمكن لأي خصم تحدي ادعاء الشخصية.';
-  if (state.phase === 'awaitBlock') return 'يمكن للخصم المناسب منع الإجراء بادعاء الشخصية الصحيحة.';
-  if (state.phase === 'awaitBlockChallenge') return 'صاحب الإجراء فقط يمكنه تحدي المنع.';
-  if (state.phase === 'loseInfluence') return 'يجب اختيار بطاقة مخفية لكشفها وخسارتها.';
-  if (state.phase === 'exchange') return 'اختر بطاقاتك التي ستبقى مخفية وأعد الباقي إلى كومة الاحتياط.';
-  if (state.phase === 'passDevice') return 'مرّر الجهاز للاعب الحالي قبل كشف بطاقاته.';
-  if (state.phase === 'gameOver') return 'تم إعلان الفائز.';
+  if (state.phase === 'chooseAction' && actor?.coins >= 10) return 'تنبيه مهم: لديك 10 عملات أو أكثر، لذلك كل الأزرار تقفل ما عدا الانقلاب.';
+  if (state.phase === 'chooseAction') return 'اختر حركة واحدة. الأزرار تشرح نفسها، ولا تحتاج حفظ القواعد.';
+  if (state.phase === 'awaitChallenge') return 'الآن لحظة الشك: هل يصدقه الآخرون أم يتحدونه؟';
+  if (state.phase === 'awaitBlock') return 'قبل تنفيذ الحركة، أعطِ فرصة للمنع إذا كان القانون يسمح.';
+  if (state.phase === 'awaitBlockChallenge') return 'صاحب الحركة فقط يقرر: يقبل المنع أو يتحدى صدقه.';
+  if (state.phase === 'loseInfluence') return 'اللاعب يختار بنفسه أي بطاقة مخفية يكشفها ويخسرها.';
+  if (state.phase === 'exchange') return 'اختر البطاقات التي تريد الاحتفاظ بها، والباقي يعود لكومة الاحتياط.';
+  if (state.phase === 'passDevice') return 'مرّر الجهاز بدون النظر، ثم اللاعب الحالي يفتح بطاقاته وحده.';
+  if (state.phase === 'gameOver') return 'انتهى الصراع وتم إعلان الفائز.';
   return '—';
 }
 
@@ -281,19 +290,27 @@ function renderActions() {
     btn.className = `action-card action-${key}`;
     const disabledReason = getActionDisabledReason(key);
     btn.disabled = Boolean(disabledReason);
-    const claim = action.claim ? `يتطلب ادعاء ${ROLE_DEFS[action.claim].ar}` : 'إجراء عام';
+    const claim = action.claim ? `يتطلب ادعاء ${ROLE_DEFS[action.claim].ar}` : 'بدون شخصية';
+    const blockText = action.unblockable ? 'لا يُمنع' : canBeBlocked(key) ? 'قد يُمنع' : 'قابل للتحدي';
     const mandatory = activePlayer()?.coins >= 10 && key === 'coup' ? '<em>إجباري الآن</em>' : '';
     btn.innerHTML = `
+      <span class="action-icon" aria-hidden="true">${action.icon || '✦'}</span>
       <span class="cost">${action.cost ? `${action.cost} عملات` : 'مجاني'}</span>
       <strong>${action.label}</strong>
       <small>${action.description}</small>
-      <span class="action-meta">${claim}${mandatory}</span>
+      <span class="action-meta">
+        <span class="action-chip">${action.simple || claim}</span>
+        <span class="action-chip">${claim}</span>
+        <span class="action-chip">${blockText}</span>
+        ${mandatory}
+      </span>
       ${disabledReason ? `<span class="disabled-reason">${disabledReason}</span>` : ''}
     `;
     btn.addEventListener('click', () => chooseAction(key));
     actionList.appendChild(btn);
   });
 }
+
 
 function getActionDisabledReason(actionKey) {
   const player = activePlayer();
@@ -315,25 +332,32 @@ function renderPlayers() {
   state.players.forEach((player, index) => {
     const card = document.createElement('article');
     card.className = `player-card glass-panel ${index === state.currentPlayer && state.phase !== 'gameOver' ? 'active' : ''} ${player.alive ? '' : 'out'}`;
+    card.dataset.playerId = String(player.id);
     const revealed = player.cards.filter((c) => c.revealed).length;
     const lives = hiddenCards(player).length;
-    const danger = player.coins >= 10 ? '<span class="badge danger">انقلاب إجباري</span>' : player.coins >= 7 ? '<span class="badge warning">قادر على الانقلاب</span>' : '';
+    const danger = player.coins >= 10 ? '<span class="badge danger">انقلاب إجباري</span>' : player.coins >= 7 ? '<span class="badge warning">جاهز للانقلاب</span>' : '';
+    const turnBadge = index === state.currentPlayer && state.phase !== 'gameOver' ? '<span class="badge warning">دوره الآن</span>' : '';
     card.innerHTML = `
+      <span class="seat-number">${index + 1}</span>
       <div class="player-head">
-        <h3>${escapeHtml(player.name)}</h3>
-        <span class="badge ${player.alive ? 'alive' : 'dead'}">${player.alive ? 'داخل اللعبة' : 'خارج اللعبة'}</span>
+        <div>
+          <h3>${escapeHtml(player.name)}</h3>
+          <div class="player-subline">${player.alive ? 'لا يزال داخل المؤامرة' : 'أُقصي من المجلس'}</div>
+        </div>
+        <span class="badge ${player.alive ? 'alive' : 'dead'}">${player.alive ? 'حي' : 'خارج'}</span>
       </div>
       <div class="badges">
+        ${turnBadge}
         <span class="badge coin">🪙 ${player.coins} عملات</span>
-        <span class="badge">تأثير مخفي: ${lives}</span>
-        <span class="badge">مكشوف: ${revealed}</span>
+        <span class="badge">${lives} تأثير مخفي</span>
+        <span class="badge">${revealed} مكشوف</span>
         ${danger}
       </div>
       <div class="card-row">
         ${player.cards.map((c) => renderInfluence(c)).join('')}
       </div>
       <div class="player-actions">
-        ${player.alive ? `<button class="mini-btn" data-view="${index}">كشف خاص</button>` : ''}
+        ${player.alive ? `<button class="mini-btn" data-view="${index}">عرض خاص للبطاقات</button>` : ''}
       </div>
     `;
     playersGrid.appendChild(card);
@@ -343,6 +367,7 @@ function renderPlayers() {
     btn.addEventListener('click', () => showCards(Number(btn.dataset.view)));
   });
 }
+
 
 function renderInfluence(card) {
   if (!card.revealed) {
@@ -358,6 +383,10 @@ function renderInfluence(card) {
 }
 
 function renderLog() {
+  if (!state.log.length) {
+    eventLog.innerHTML = '<div class="log-entry"><div>سيظهر هنا كل ما يحدث في المجلس خطوة بخطوة.</div><small>جاهز</small></div>';
+    return;
+  }
   eventLog.innerHTML = state.log.slice(0, 90).map((entry) => `
     <div class="log-entry log-${entry.type}"><div>${escapeHtml(entry.text)}</div><small>${entry.time}</small></div>
   `).join('');
