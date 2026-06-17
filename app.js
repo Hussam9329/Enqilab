@@ -8,13 +8,13 @@ const ROLE_DEFS = {
     blocks: ['foreignAid']
   },
   Assassin: {
-    ar: 'السفاح', icon: '🗡️', claim: 'السفاح',
+    ar: 'القاتل', icon: '🗡️', claim: 'القاتل',
     image: 'assets/cards/assassin.webp',
     power: 'يدفع 3 عملات لاغتيال تأثير لدى لاعب آخر.',
     blocks: []
   },
   Captain: {
-    ar: 'القبطان', icon: '⚓', claim: 'القبطان',
+    ar: 'القائد', icon: '⚓', claim: 'القائد',
     image: 'assets/cards/captain.webp',
     power: 'يسرق عملتين من لاعب آخر ويمنع السرقة.',
     blocks: ['steal']
@@ -26,7 +26,7 @@ const ROLE_DEFS = {
     blocks: ['steal']
   },
   Contessa: {
-    ar: 'الكونتيسة', icon: '💎', claim: 'الكونتيسة',
+    ar: 'الكونتيسا', icon: '💎', claim: 'الكونتيسا',
     image: 'assets/cards/contessa.webp',
     power: 'تمنع الاغتيال.',
     blocks: ['assassinate']
@@ -61,13 +61,13 @@ const ACTIONS = {
   assassinate: {
     label: 'الاغتيال', icon: '🗡️', claim: 'Assassin',
     simple: 'ادفع 3 واقتل تأثيراً',
-    description: 'ادّعِ السفاح، ادفع 3 عملات، واختر هدفاً. الكونتيسة قد تمنع.',
+    description: 'ادّعِ القاتل، ادفع 3 عملات، واختر هدفاً. الكونتيسا قد تمنع.',
     target: true, cost: 3
   },
   steal: {
     label: 'السرقة', icon: '⚓', claim: 'Captain',
     simple: 'خذ حتى عملتين',
-    description: 'ادّعِ القبطان واسرق من لاعب لديه عملات. القبطان أو السفير يمنعان.',
+    description: 'ادّعِ القائد واسرق من لاعب لديه عملات. القائد أو السفير يمنعان.',
     target: true, cost: 0
   },
   exchange: {
@@ -176,6 +176,8 @@ const onlinePlayersList = $('#onlinePlayersList');
 const onlineStartRoomGameBtn = $('#onlineStartRoomGame');
 const onlineLeaveRoomBtn = $('#onlineLeaveRoom');
 const copyRoomLinkBtn = $('#copyRoomLink');
+const chromePlayBtn = $('#chromePlay');
+const chromeRulesBtn = $('#chromeRules');
 
 function readBoolSetting(key, fallback) {
   try {
@@ -1544,10 +1546,10 @@ function showRules() {
         <h3>ادعاءات الشخصيات</h3>
         <ul class="rules-list">
           <li><strong>الدوق:</strong> يأخذ 3 عملات أو يمنع المساعدات الأجنبية.</li>
-          <li><strong>السفاح:</strong> يدفع 3 عملات لاغتيال بطاقة خصم.</li>
-          <li><strong>القبطان:</strong> يسرق حتى عملتين، ويمكنه منع السرقة.</li>
+          <li><strong>القاتل:</strong> يدفع 3 عملات لاغتيال بطاقة خصم.</li>
+          <li><strong>القائد:</strong> يسرق حتى عملتين، ويمكنه منع السرقة.</li>
           <li><strong>السفير:</strong> يبدّل البطاقات، ويمكنه منع السرقة.</li>
-          <li><strong>الكونتيسة:</strong> تمنع الاغتيال فقط.</li>
+          <li><strong>الكونتيسا:</strong> تمنع الاغتيال فقط.</li>
         </ul>
       </section>
       <section>
@@ -1555,7 +1557,7 @@ function showRules() {
         <ul class="rules-list">
           <li>أي ادعاء شخصية يمكن تحديه. الخاسر في التحدي يكشف بطاقة ويخسر تأثيراً.</li>
           <li>إذا كان المدّعي صادقاً، يكشف البطاقة لإثبات الادعاء ثم يعيدها إلى الكومة ويأخذ بطاقة بديلة، بينما يخسر المتحدي تأثيراً.</li>
-          <li>إذا فشل منع الكونتيسة ضد اغتيال بعد تحديه، يخسر الهدف تأثيراً بسبب كذب المنع ثم يستمر الاغتيال إن بقي لديه تأثير.</li>
+          <li>إذا فشل منع الكونتيسا ضد اغتيال بعد تحديه، يخسر الهدف تأثيراً بسبب كذب المنع ثم يستمر الاغتيال إن بقي لديه تأثير.</li>
           <li>آخر لاعب لديه بطاقة مخفية واحدة على الأقل هو الفائز.</li>
         </ul>
       </section>
@@ -2064,6 +2066,16 @@ $('#showMyCards').addEventListener('click', () => {
   showCards(playerIndex);
 });
 $('#openRules').addEventListener('click', showRules);
+chromeRulesBtn?.addEventListener('click', showRules);
+chromePlayBtn?.addEventListener('click', () => {
+  playEffect('select');
+  if (!setupScreen.classList.contains('hidden')) {
+    $('#startGame')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('#startGame')?.focus({ preventScroll: true });
+    return;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
 $('#soundToggle').addEventListener('click', toggleSound);
 $('#visualToggle').addEventListener('click', toggleVisuals);
 
